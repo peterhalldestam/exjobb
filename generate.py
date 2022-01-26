@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+
+import sys
+import numpy as np
+
+try:
+    import DREAM
+except ModuleNotFoundError:
+    import sys
+    sys.path.append('/home/pethalld/DREAM/py')
+    sys.path.append('/home/peterhalldestam/DREAM/py')
+    sys.path.append('/home/hannber/DREAM/py')
+    import DREAM
+
+from DREAM import DREAMSettings, runiface
+import DREAM.Settings.CollisionHandler as Collisions
+import DREAM.Settings.Equations.ColdElectronTemperature as Temperature
+import DREAM.Settings.Equations.ElectricField as ElectricField
+import DREAM.Settings.Equations.IonSpecies as Ions
+import DREAM.Settings.Equations.RunawayElectrons as RunawayElectrons
+import DREAM.Settings.Solver as Solver
+import DREAM.Settings.TransportSettings as Transport
+
+import ITER as Tokamak
+
+NT = 6e3
+
+def getBaseline():
+    """
+    Generate baseline scenario. This initialization consists of two short
+    simulation runs: the first is used to calculate the conductivity, which is
+    then used to set a desired current density profile.
+    """
+    ds = DREAMSettings()
+
+    # set analytic toroidal magnetic field
+    Tokamak.setMagneticField(ds, visualize=True)
+
+    # Collision settings (THESE NEED TO BE UNDERSTOOD IN MORE DETAIL...)
+    ds.collisions.collfreq_mode = Collisions.COLLFREQ_MODE_FULL
+    ds.collisions.collfreq_type = Collisions.COLLFREQ_TYPE_PARTIALLY_SCREENED
+    ds.collisions.bremsstrahlung_mode = Collisions.BREMSSTRAHLUNG_MODE_STOPPING_POWER
+    ds.collisions.lnlambda = Collisions.LNLAMBDA_ENERGY_DEPENDENT
+    ds.collisions.pstar_mode = Collisions.PSTAR_MODE_COLLISIONAL
+
+    # Disable kinetic grids (we run purely fluid simulations)
+    ds.hottailgrid.setEnabled(False)
+    ds.runawaygrid.setEnabled(False)
+
+    # Background ion density
+    ds.eqsys.n_i.addIon('D', Z=1, iontype=Ions.IONS_DYNAMIC, Z0=1, n=Tokamak.ne0,
+                        opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE) # UNDERSTAND THIS!!!
+
+    # Solver
+    ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
+    ds.solver.setType(Solver.NONLINEAR)
+
+    # Set temporary time stepper options during initialization
+    ds.timestep.setTmax(1e-11)
+    ds.timestep.setNt(1)
+
+    # Include all fluid `OtherQuantity`s
+    ds.other.include('fluid')
+
+    # get the exponential-decay temperature evolution
+    tT, rT, T0 = Tokamak.getTemperatureEvolution(tau0=1e-3)
+
+    ############################################################################
+    # STEP 1 : Calculate conductivity
+
+    # Prescribe temperature (constant during initialization)
+    ds.eqsys.T_cold.setPrescribedData(T0[0,:], radius=rT, times=[0])
+
+    # Prescribe dummy electric field
+    ds.eqsys.E_field.setPrescribedData(1e-4)
+
+    # Calculate the conductivity
+    do = runiface(ds, quiet=False)
+
+    ############################################################################
+    # STEP 2 : Obtain initial current density profile
+
+    # Prescribe the exponential-decay temperature
+    ds.eqsys.T_cold.setPrescribedData(T0, radius=rT, times=tT)
+
+    # Obtain the initial electric field from the conductivity calculation
+    rj, j = Tokamak.getCurrentDensity(r=do.grid.r)
+    E0 = j / do.other.fluid.conductivity[-1,:] * np.ones((1, rj.size))
+    # do.close()
+
+    # Prescribe this initial electric field
+    ds.eqsys.E_field.setPrescribedData(E0, radius=rj, times=[0])
+
+    # Obtain initial current density profile
+    do = runiface(ds, 'init_out.h5', quiet=False)
+
+    ############################################################################
+    # Final setup of baseline
+
+    # Copy settings
+    ds1 = DREAMSettings(ds)
+    ds1.fromOutput('init_out.h5', ignore=['n_i'])   # WHY IGNORE n_i??
+
+    # rest time stepper options
+    ds1.timestep.setTmax(tT[-1])
+    ds1.timestep.setNt(NT)
+    ds1.timestep.setNumberOfSaveSteps(200)
+
+    # Change to self-consistent electric field
+    ds1.eqsys.E_field.setType(ElectricField.TYPE_SELFCONSISTENT)
+    ds1.eqsys.E_field.setBoundaryCondition(ElectricField.BC_TYPE_PRESCRIBED,
+                                           inverse_wall_time=0, V_loop_wall_R0=0)
+    # ds1.eqsys.E_field.setBoundaryCondition(ElectricField.BC_TYPE_SELFCONSISTENT,
+    #                                        inverse_wall_time=2, R0=R0wall)
+
+    # set relative and absolute tolerances
+    ds1.solver.tolerance.set(reltol=2e-6)
+    ds1.solver.tolerance.set(unknown='n_re', reltol=2e-6, abstol=1e5)
+    ds1.solver.tolerance.set(unknown='j_re', reltol=2e-6, abstol=1e-5) # j ~ e*c*n_e ~ n_e*1e-10 ?
+
+    # include info about time spent in different parts...
+    ds1.output.setTiming(True, True)
+
+    return ds
+
+
+def main():
+    ds = getBaseline()
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())
