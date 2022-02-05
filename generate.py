@@ -81,7 +81,7 @@ def getBaseline():
     # STEP 2 : Obtain initial current density profile
 
     # Prescribe the exponential-decay temperature
-    ds.eqsys.T_cold.setPrescribedData(T0, radius=rT, times=tT)
+    #ds.eqsys.T_cold.setPrescribedData(T0, radius=rT, times=tT)
 
     # Obtain the initial electric field from the conductivity calculation
     rj, j = Tokamak.getCurrentDensity(r=do.grid.r)
@@ -106,14 +106,22 @@ def getBaseline():
     ds1.timestep.setNt(NT)
     ds1.timestep.setNumberOfSaveSteps(200)
 
-    # Change to self-consistent electric field
-    ds1.eqsys.E_field.setType(ElectricField.TYPE_SELFCONSISTENT)
-    ds1.eqsys.E_field.setBoundaryCondition(ElectricField.BC_TYPE_PRESCRIBED,
-                                           inverse_wall_time=0, V_loop_wall_R0=0)
-    # ds1.eqsys.E_field.setBoundaryCondition(ElectricField.BC_TYPE_SELFCONSISTENT,
-    #                                        inverse_wall_time=2, R0=R0wall)
+	# Enable self consistent evolution of E-field
+	ds1.eqsys.E_field.setType(ElectricField.TYPE_SELFCONSISTENT)
+	ds1.eqsys.E_field.setBoundaryCondition(ElectricField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=0, R0=R0)
 
-    # set relative and absolute tolerances
+	# Enable self consistent temperature evolution
+	ds1.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
+	ds1.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
+	
+	# Enable magnetic pertubations that will allow for radial transport
+	dBB= 1.5e-3 # Impact of this value will greatly depend on occurence of impurities
+	ds1.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB)
+	ds1.eqsys.f_re.transport.setMagneticPerturbation(dBB=dBB)
+	ds1.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
+	ds1.eqsys.f_re.transport.setBoundaryCondition(Transport.BC_F_0)
+	
+	# set relative and absolute tolerances
     ds1.solver.tolerance.set(reltol=2e-6)
     ds1.solver.tolerance.set(unknown='n_re', reltol=2e-6, abstol=1e5)
     ds1.solver.tolerance.set(unknown='j_re', reltol=2e-6, abstol=1e-5) # j ~ e*c*n_e ~ n_e*1e-10 ?
