@@ -16,7 +16,7 @@ except ModuleNotFoundError:
     import DREAM
 
 
-def getCQTime(I, t, tol=.02):
+def getCQTime(I, t, tol=.05):
 	"""
 	If possible, calculates current quench time.
 	Returns None otherwise.
@@ -31,12 +31,16 @@ def getCQTime(I, t, tol=.02):
 	i20 = np.argmin(np.abs(I/I[0] - 0.2))
 
 	if np.abs(I[i80]/I[0] - 0.8) > tol:
-		msg = f'\nUnable to determine time of 80% amplitude within {tol*100}% margin.'
+		msg = f'\nData point at 80% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.'
 		warnings.warn(msg)
-		return None
 	elif np.abs(I[i20]/I[0] - 0.2) > tol:
-		msg = f'\nUnable to determine time of 20% amplitude within {tol*100}% margin.'
+		msg = f'\nData point at 20% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.'
 		warnings.warn(msg)
-		return None
-
-	return (t[i20] - t[i80]) / 0.6
+		
+	t0_80 = t[i_80]
+	t0_20 = t[i_20]
+	
+	t_80 = fsolve(lambda x: np.interp(x, t, I)/I[0]-0.8, x0 = t0_80)
+	t_20 = fsolve(lambda x: np.interp(x, t, I)/I[0]-0.2, x0 = t0_20)
+	
+	return (t_20 - t_80) / 0.6
