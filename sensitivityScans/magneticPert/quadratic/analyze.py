@@ -4,6 +4,8 @@ import sys, os, glob, warnings
 import numpy as np
 from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import axes3d
+from matplotlib import cm
 
 sys.path.append('/home/hannber/DREAM/py')
 from DREAM.DREAMOutput import DREAMOutput
@@ -43,18 +45,18 @@ def analyze(do, ax=None):
 		ax.plot(t*1e3, I_ohm[:]*1e-6, label = '$I_{\Omega}$')
 		ax.plot(t*1e3, I_re[:]*1e-6, label = '$I_{RE}$')
 		ax.plot(t*1e3, I_tot[:]*1e-6, label = '$I_{tot}$')
-
+		
 	return I_re_max, t_CQ, Q_trans
 
 
 if __name__ == '__main__':
 
-	outputs = sorted(glob.glob('output/*'))
+	outputs = sorted(glob.glob('output/*'), key = lambda x: float(x[16:-3]))
 
 	I_list = np.array([])
 	t_CQ_list = np.array([])
 	Q_trans_list = np.array([])
-	dBB_list = np.array([])
+	a_list = np.array([])
 	do_list = []
 
 	for output in outputs:
@@ -62,28 +64,28 @@ if __name__ == '__main__':
 		do = DREAMOutput(output)
 
 		I, t_CQ, Q_trans = analyze(do)
-		dBB = do.settings.eqsys.T_cold.transport.dBB[0]
 		
-		dBB_list = np.append(dBB_list, dBB)
+		a_list = np.append(a_list, float(output[16:-3]))
 		I_list = np.append(I_list, I)
-		Q_trans_list = np.append(Q_trans_list, Q_trans)
 		t_CQ_list = np.append(t_CQ_list, t_CQ)
+		Q_trans_list = np.append(Q_trans_list, Q_trans)
 		do_list.append(do)
+		
 
-	fig, ax = plt.subplots(1, len(outputs), figsize=(17,6), sharey='row')
-	
-	for i in range(len(outputs)):
-		do = do_list[i]
-		analyze(do, ax[i])
-		ax[i].set_title(f'dBB = {dBB_list[i]}')
-		ax[i].text(50, 14, '$\hat{I}_{RE}$'f'$={I_list[i]*1e-6:.3}$ MA', fontsize = 12)
-		ax[i].text(50, 13, '$t_{CQ}$'f'$={t_CQ_list[i]*1e3:.4}$ ms', fontsize = 12)
-		ax[i].text(50, 12, '$Q_{trans}$'f'$={Q_trans_list[i]*1e-9:.4}$ GJ', fontsize = 12)
+	fig, ax = plt.subplots(1,len(do_list), figsize=(17, 6), sharey = 'row')
+	for i in range(len(do_list)):
+		analyze(DREAMOutput(outputs[i]), ax[i])
+		ax[i].text(50, 13, r'$\tilde{I}_{RE}$'f'$={I_list[i]*1e-6:.3}$ MA', fontsize = 12)
+		ax[i].text(50, 12, '$t_{CQ}$'f'$={t_CQ_list[i]*1e3:.4}$ ms', fontsize = 12)
+		ax[i].text(50, 11, '$Q_{trans}$'f'$={Q_trans_list[i]*1e-9:.4}$ GJ', fontsize = 12)
+		ax[i].set_title(f'a = {a_list[i]}')
 		ax[i].set_xlabel('time [ms]')
 		
 	ax[0].set_ylabel('current [MA]')
 	fig.legend(['$I_{\Omega}$', '$I_{RE}$', '$I_{tot}$'], fontsize = 15)
-	
+
+	dBB_tot = do.grid.integrate(do.settings.eqsys.T_cold.transport.dBB[0])
+	fig.suptitle(r'$\partial B/B \propto ar^2 + 1$     '+r'$\int \partial B/B dr =$'+f'{dBB_tot}', fontsize=15)
 	plt.show()
 	
 

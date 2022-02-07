@@ -9,7 +9,7 @@ import sys
 import scipy.io as sio
 import subprocess
 
-sys.path.append('/home/hannber/DREAM/py') # Modify these paths as needed on your system
+sys.path.append('/home/hannber/DREAM/py') # Modify this path as needed on your system
 sys.path.append('/home/hannber/exjobb')
 from DREAM import DREAMSettings
 from DREAM import runiface
@@ -77,7 +77,7 @@ ds_init.other.include('fluid/conductivity')
 do = runiface(ds_init, 'init/output_conductivity.h5', quiet=False)
 
 """ Second intialization: set target current profile """
-I_p = 15e6	# [A]
+I_p = 15e6
 j_target = I_p * 2*np.pi * j_prof / do.grid.integrate(j_prof)
 E = j_target / do.other.fluid.conductivity[-1,:]
 
@@ -88,6 +88,8 @@ do = runiface(ds_init, 'init/output_current.h5', quiet=False) # Using the same t
 # Change to main time configuration
 t_max = 160e-3
 nt = 24e3
+t = np.linspace(0, t_max, nt)
+
 ds_init.timestep.setTmax(t_max)
 ds_init.timestep.setNt(nt)
 ds_init.timestep.setNumberOfSaveSteps(400)
@@ -107,19 +109,24 @@ ds_init.eqsys.E_field.setBoundaryCondition(ElectricField.BC_TYPE_SELFCONSISTENT,
 ds_init.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
 ds_init.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
 
-# Run simulation for different uniform perturbations
-dBB_list = np.linspace(1e-3, 5e-3, 5)
-for i, dBB in enumerate(dBB_list):
+# Run simulation for different perturbation profiles with total dBB0 = 90e-3
+dBB0 = 90e-3
+dBB_prof = lambda a: dBB0 * (a*do.grid.r**2 + 1) / do.grid.integrate(a*do.grid.r**2 + 1)
 
+a_list = [0.5, 1, 2, 4, 8]
+for a in a_list:
+	
 	ds_main = DREAMSettings(ds_init)
 	ds_main.other.include('fluid')
-	ds_main.other.include('scalar')
-	
-	ds_main.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB)
-	ds_main.eqsys.f_re.transport.setMagneticPerturbation(dBB=dBB)
+	ds_main.other.include('transport')
+
+	dBB = dBB_prof(a)
+	dBB = dBB.reshape((1, len(do.grid.r)))
+	dBB = dBB.repeat(int(nt), axis=0)
+	ds_main.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB, t=t, r=do.grid.r)
+	ds_main.eqsys.f_re.transport.setMagneticPerturbation(dBB=dBB, t=t, r=do.grid.r)
 	ds_main.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
 	ds_main.eqsys.f_re.transport.setBoundaryCondition(Transport.BC_F_0)
 	
-	do = runiface(ds_main, f'output/output{i}.h5', quiet=False)
-
+	do = runiface(ds_main, f'output/output_a_{a}.h5', quiet=False)
 
