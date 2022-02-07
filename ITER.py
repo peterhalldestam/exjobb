@@ -57,7 +57,7 @@ def setMagneticField(ds, nr=40, visualize=False):
     ds.radialgrid.setWallRadius(b)
     ds.radialgrid.setNr(nr)
 
-    ds.radialgrid.setShaping(psi=psi_p, rpsi=psi_r, G=B0, kappa=kappa, rkappa=r, delta=delta, rdelta=r)
+    ds.radialgrid.setShaping(psi=psi_p, rpsi=psi_r, GOverR0=B0, kappa=kappa, rkappa=r, delta=delta, rdelta=r)
 
     if visualize:
         ds.radialgrid.visualize(ntheta=200)
@@ -152,4 +152,3 @@ def getCurrentDensity(r=None, nr=100):
 
     #return r, j0 * (1 - (r/a)**0.41)
     return r, j0 * (1 - (1-0.001**(1/0.41))*(r/a)**2)**0.41
-    

@@ -25,7 +25,7 @@ import ITER as Tokamak
 
 NT = 6e3
 
-def getBaseline():
+def getBaseline(n=Tokamak.ne0):
     """
     Generate baseline scenario. This initialization consists of two short
     simulation runs: the first is used to calculate the conductivity, which is
@@ -34,7 +34,7 @@ def getBaseline():
     ds = DREAMSettings()
 
     # set analytic toroidal magnetic field
-    Tokamak.setMagneticField(ds, visualize=True)
+    Tokamak.setMagneticField(ds, visualize=False)
 
     # Collision settings (THESE NEED TO BE UNDERSTOOD IN MORE DETAIL...)
     ds.collisions.collfreq_mode = Collisions.COLLFREQ_MODE_FULL
@@ -43,12 +43,12 @@ def getBaseline():
     ds.collisions.lnlambda = Collisions.LNLAMBDA_ENERGY_DEPENDENT
     ds.collisions.pstar_mode = Collisions.PSTAR_MODE_COLLISIONAL
 
-    # Disable kinetic grids (we run purely fluid simulations)
+    # Disable kinetic grids (w13:0e run purely fluid simulations)
     ds.hottailgrid.setEnabled(False)
     ds.runawaygrid.setEnabled(False)
 
     # Background ion density
-    ds.eqsys.n_i.addIon('D', Z=1, iontype=Ions.IONS_DYNAMIC, Z0=1, n=Tokamak.ne0,
+    ds.eqsys.n_i.addIon('D', Z=1, iontype=Ions.IONS_DYNAMIC, Z0=1, n=n,
                         opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE) # UNDERSTAND THIS!!!
 
     # Solver
@@ -63,13 +63,14 @@ def getBaseline():
     ds.other.include('fluid')
 
     # get the exponential-decay temperature evolution
-    tT, rT, T0 = Tokamak.getTemperatureEvolution(tau0=1e-3)
+    # tT, rT, T0 = Tokamak.g13:0etTemperatureEvolution(tau0=1e-3)
 
+    rT, T0 = Tokamak.getInitialTemperature()
     ############################################################################
     # STEP 1 : Calculate conductivity
 
     # Prescribe temperature (constant during initialization)
-    ds.eqsys.T_cold.setPrescribedData(T0[0,:], radius=rT, times=[0])
+    ds.eqsys.T_cold.setPrescribedData(T0, radius=rT, times=[0])
 
     # Prescribe dummy electric field
     ds.eqsys.E_field.setPrescribedData(1e-4)
@@ -78,7 +79,7 @@ def getBaseline():
     do = runiface(ds, quiet=False)
 
     ############################################################################
-    # STEP 2 : Obtain initial current density profile
+    # STEP 2 : Obtain initia13:0l current density profile
 
     # Prescribe the exponential-decay temperature
     #ds.eqsys.T_cold.setPrescribedData(T0, radius=rT, times=tT)
@@ -89,7 +90,7 @@ def getBaseline():
     # do.close()
 
     # Prescribe this initial electric field
-    ds.eqsys.E_field.setPrescribedData(E0, radius=rj, times=[0])
+    # ds.eqsys.E_field.setPrescribedData(E0, radius=rj, times=[0])
 
     # Obtain initial current density profile
     do = runiface(ds, 'init_out.h5', quiet=False)
@@ -99,41 +100,48 @@ def getBaseline():
 
     # Copy settings
     ds1 = DREAMSettings(ds)
+
+
     ds1.fromOutput('init_out.h5', ignore=['n_i'])   # WHY IGNORE n_i??
 
     # rest time stepper options
-    ds1.timestep.setTmax(tT[-1])
+    # ds1.timestep.setTmax(tT[-1])
     ds1.timestep.setNt(NT)
     ds1.timestep.setNumberOfSaveSteps(200)
 
-	# Enable self consistent evolution of E-field
-	ds1.eqsys.E_field.setType(ElectricField.TYPE_SELFCONSISTENT)
-	ds1.eqsys.E_field.setBoundaryCondition(ElectricField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=0, R0=R0)
+    # Enable self consistent evolution of E-field
+    ds1.eqsys.E_field.setType(ElectricField.TYPE_SELFCONSISTENT)
+    ds1.eqsys.E_field.setBoundaryCondition(ElectricField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=0, R0=Tokamak.R0)
 
-	# Enable self consistent temperature evolution
-	ds1.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
-	ds1.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
-	
-	# Enable magnetic pertubations that will allow for radial transport
-	dBB= 1.5e-3 # Impact of this value will greatly depend on occurence of impurities
-	ds1.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB)
-	ds1.eqsys.f_re.transport.setMagneticPerturbation(dBB=dBB)
-	ds1.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-	ds1.eqsys.f_re.transport.setBoundaryCondition(Transport.BC_F_0)
-	
-	# set relative and absolute tolerances
+    # Enable self consistent temperature evolution
+    ds1.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
+    ds1.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
+
+    # Enable magnetic pertubations that will allow for radial transport
+    dBB = 1.5e-3 # Impact of this value will greatly depend on occurence of impurities
+    ds1.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB)
+    ds1.eqsys.f_re.transport.setMagneticPerturbation(dBB=dBB)
+    ds1.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
+    ds1.eqsys.f_re.transport.setBoundaryCondition(Transport.BC_F_0)
+    #
+    # # set relative and absolute tolerances
     ds1.solver.tolerance.set(reltol=2e-6)
     ds1.solver.tolerance.set(unknown='n_re', reltol=2e-6, abstol=1e5)
     ds1.solver.tolerance.set(unknown='j_re', reltol=2e-6, abstol=1e-5) # j ~ e*c*n_e ~ n_e*1e-10 ?
 
     # include info about time spent in different parts...
     ds1.output.setTiming(True, True)
+    return ds1
 
-    return ds
+def simulate(ds1):
 
+    ds2 = DREAMSettings(ds1)
+    ds2.fromOutput('init_out.h5')
+    runiface(ds2, 'out.h5')
 
 def main():
     ds = getBaseline()
+    simulate(ds)
     return 0
 
 if __name__ == '__main__':
