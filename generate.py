@@ -105,7 +105,7 @@ def getBaseline(n=Tokamak.ne0):
     ds1.fromOutput('init_out.h5', ignore=['n_i'])   # WHY IGNORE n_i??
 
     # rest time stepper options
-    # ds1.timestep.setTmax(tT[-1])
+    ds1.timestep.setTmax(150e-3)
     ds1.timestep.setNt(NT)
     ds1.timestep.setNumberOfSaveSteps(200)
 
@@ -124,6 +124,13 @@ def getBaseline(n=Tokamak.ne0):
     ds1.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
     ds1.eqsys.f_re.transport.setBoundaryCondition(Transport.BC_F_0)
     #
+    # Enable avalanche, hottail and Dreicer generation
+    ds1.eqsys.n_re.setAvalanche(RunawayElectrons.AVALANCHE_MODE_FLUID)
+    ds1.eqsys.n_re.setDreicer(RunawayElectrons.DREICER_RATE_NEURAL_NETWORK)
+
+    ds1.eqsys.f_hot.setInitialProfiles(n0=n, rT0=rT, T0=T0)
+    ds1.eqsys.n_re.setHottail(RunawayElectrons.HOTTAIL_MODE_ANALYTIC_ALT_PC)
+
     # # set relative and absolute tolerances
     ds1.solver.tolerance.set(reltol=2e-6)
     ds1.solver.tolerance.set(unknown='n_re', reltol=2e-6, abstol=1e5)
