@@ -37,29 +37,42 @@ def getCQTime(I, t, tol=.05):
 	elif np.abs(I[i20]/I[0] - 0.2) > tol:
 		msg = f'\nData point at 20% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.'
 		warnings.warn(msg)
-		
+
 	t0_80 = t[i_80]
 	t0_20 = t[i_20]
-	
+
 	t_80 = fsolve(lambda x: np.interp(x, t, I)/I[0]-0.8, x0 = t0_80)
 	t_20 = fsolve(lambda x: np.interp(x, t, I)/I[0]-0.2, x0 = t0_20)
-	
+
 	return (t_20 - t_80) / 0.6
-	
+
 
 def getRRCoefficient(dBB, q=1, R0=tokamak.R0):
 	"""
 	Calculates the Rechester-Rosenbluth diffusion operator for runaway electrons under the assumption that v_p = c.
-	
+
 	:param dBB:	0-2D array containing the magnetic pertubation spatial/transient profile.
-	:param q:	scalar or 1D array representing the tokamak safety factor. 
+	:param q:	scalar or 1D array representing the tokamak safety factor.
 	:param R0:	major radius of the tokamak [m].
 	"""
 
 	if not isinstance(dBB, (int, float)):
 		assert len(dBB.shape) <= 2
-		
+
 		if not isinstance(q, (int, float)):
 			assert len(q) == dBB.shape[-1]
 
 	return np.pi * R0 * q * scp.constants.c * (dBB)**2
+
+
+def terminate(sim, Tstop):
+    """
+    Returns true if the temperature reaches Tstop. Used as termination function
+    during the thermal quench to determine when to lower/turn off the magnetic
+    pertubation dBB (in the end of the TQ?).
+
+    :param sim:     libdreampyface 'Simulation' object.
+    :param Tstop:   temperature [eV] at which to terminate the simulation.
+    """
+    temperature = sim.unknowns.getData('T_cold')
+    return temperature['x'][-1,0] < Tstop
