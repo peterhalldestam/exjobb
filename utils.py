@@ -4,6 +4,8 @@ Collection of helper functions and more...
 
 import sys, os
 import numpy as np
+import scipy as scp
+import ITER as tokamak
 
 DREAMPATHS = ('/home/pethalld/DREAM/py', '/home/peterhalldestam/DREAM/py', '/home/hannber/DREAM/py')
 
@@ -18,8 +20,7 @@ except ModuleNotFoundError:
 
 def getCQTime(I, t, tol=.05):
 	"""
-	If possible, calculates current quench time.
-	Returns None otherwise.
+	Calculates current quench time through interpolation.
 
     :param I:   1D array of Ohmic current data over time.
     :param t:   corresponding array of timesteps.
@@ -44,3 +45,21 @@ def getCQTime(I, t, tol=.05):
 	t_20 = fsolve(lambda x: np.interp(x, t, I)/I[0]-0.2, x0 = t0_20)
 	
 	return (t_20 - t_80) / 0.6
+	
+
+def getRRCoefficient(dBB, q=1, R0=tokamak.R0):
+	"""
+	Calculates the Rechester-Rosenbluth diffusion operator for runaway electrons under the assumption that v_p = c.
+	
+	:param dBB:	0-2D array containing the magnetic pertubation spatial/transient profile.
+	:param q:	scalar or 1D array representing the tokamak safety factor. 
+	:param R0:	major radius of the tokamak [m].
+	"""
+
+	if not isinstance(dBB, (int, float)):
+		assert len(dBB.shape) <= 2
+		
+		if not isinstance(q, (int, float)):
+			assert len(q) == dBB.shape[-1]
+
+	return np.pi * R0 * q * scp.constants.c * (dBB)**2
