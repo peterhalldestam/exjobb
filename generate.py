@@ -3,6 +3,8 @@
 import sys
 import numpy as np
 
+import utils
+
 try:
     import DREAM
 except ModuleNotFoundError:
@@ -23,6 +25,7 @@ import DREAM.Settings.TransportSettings as Transport
 
 import ITER as Tokamak
 
+TSTOP = 100
 NT = 6e3
 
 def getBaseline(n=Tokamak.ne0):
@@ -138,6 +141,9 @@ def getBaseline(n=Tokamak.ne0):
 
     # include info about time spent in different parts...
     ds1.output.setTiming(True, True)
+
+    # NOT WORKING!
+    # ds1.timestep.setTerminationFunction(lambda s: terminate(s, TSTOP))
     return ds1
 
 def simulate(ds1):
