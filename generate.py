@@ -121,12 +121,15 @@ def getBaseline(n=Tokamak.ne0):
     ds1.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
 
     # Enable magnetic pertubations that will allow for radial transport
-    dBB = 1.5e-3 # Impact of this value will greatly depend on occurence of impurities
+    dBB = 1.5e-3
+    Drr = utils.getRRCoefficient(dBB, R0 = Tokamak.R0) # Rechester-Rosenbluth diffusion operator
+    
     ds1.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB)
-    ds1.eqsys.f_re.transport.setMagneticPerturbation(dBB=dBB)
     ds1.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-    ds1.eqsys.f_re.transport.setBoundaryCondition(Transport.BC_F_0)
-    #
+    
+    ds1.eqsys.n_re.transport.prescribeDiffusion(drr=Drr)
+    ds1.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+
     # Enable avalanche, hottail and Dreicer generation
     ds1.eqsys.n_re.setAvalanche(RunawayElectrons.AVALANCHE_MODE_FLUID)
     ds1.eqsys.n_re.setDreicer(RunawayElectrons.DREICER_RATE_NEURAL_NETWORK)
