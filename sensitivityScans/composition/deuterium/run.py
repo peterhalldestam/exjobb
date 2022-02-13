@@ -16,7 +16,6 @@ from DREAM import runiface
 
 sys.path.append('../../../')
 from generate import getBaseline
-from utils import getCQTime
 
 DEUTERIUM_DENSITIES = (1e19, 1e20, 1e21)
 
