@@ -108,7 +108,8 @@ def getBaseline(n=Tokamak.ne0):
     ds1.fromOutput('init_out.h5', ignore=['n_i'])   # WHY IGNORE n_i??
 
     # rest time stepper options
-    ds1.timestep.setTmax(150e-3)
+    Tmax = 150e-3
+    ds1.timestep.setTmax(Tmax)
     ds1.timestep.setNt(NT)
     ds1.timestep.setNumberOfSaveSteps(200)
 
@@ -121,12 +122,20 @@ def getBaseline(n=Tokamak.ne0):
     ds1.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
 
     # Enable magnetic pertubations that will allow for radial transport
-    dBB = 1.5e-3 # Impact of this value will greatly depend on occurence of impurities
+    dBB = 1.5e-3
+    Drr = utils.getRRCoefficient(dBB, R0 = Tokamak.R0) # Rechester-Rosenbluth diffusion operator
+    pstar = 0.5	# Lower momentum boundry for runaway electrons in Svensson Transport [mc]
+    t = np.linspace(0, Tmax, NT)
+    
     ds1.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB)
-    ds1.eqsys.f_re.transport.setMagneticPerturbation(dBB=dBB)
     ds1.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-    ds1.eqsys.f_re.transport.setBoundaryCondition(Transport.BC_F_0)
-    #
+    
+    ds1.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
+    ds1.eqsys.n_re.transport.setSvenssonPstar(pstar)
+    # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
+    ds1.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, interp1d=Transport.INTERP1D_NEAREST)	
+    ds1.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+
     # Enable avalanche, hottail and Dreicer generation
     ds1.eqsys.n_re.setAvalanche(RunawayElectrons.AVALANCHE_MODE_FLUID)
     ds1.eqsys.n_re.setDreicer(RunawayElectrons.DREICER_RATE_NEURAL_NETWORK)
