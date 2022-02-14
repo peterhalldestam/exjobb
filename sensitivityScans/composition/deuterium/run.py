@@ -17,16 +17,20 @@ from DREAM import runiface
 sys.path.append('../../../')
 from generate import getBaseline
 
-DEUTERIUM_DENSITIES = (1e19, 1e20, 1e21)
+
+n0 = 1e19
+cases = ((1., 0.), (.7, .3), (.3, .7), (0., 1.))
 
 def main():
 
-    for n in DEUTERIUM_DENSITIES:
+    for i, case in enumerate(cases):
+
+        print(case)
 
         # run simulation
-        ds = getBaseline(n=n)
+        ds = getBaseline(nD=case[0]*n0, nT=case[1]*n0)
         ds.fromOutput('init_out.h5')
-        runiface(ds, f'outputs/out{n:3.3}.h5')
+        runiface(ds, f'outputs/out{i}.h5')
         os.remove('init_out.h5')
 
 if __name__ == '__main__':

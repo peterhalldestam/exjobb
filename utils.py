@@ -5,6 +5,8 @@ Collection of helper functions and more...
 import sys, os
 import numpy as np
 import scipy as scp
+import matplotlib.pyplot as plt
+
 import ITER as tokamak
 
 DREAMPATHS = ('/home/pethalld/DREAM/py', '/home/peterhalldestam/DREAM/py', '/home/hannber/DREAM/py')
@@ -16,6 +18,37 @@ except ModuleNotFoundError:
     for dp in DREAMPATHS:
         sys.path.append(dp)
     import DREAM
+
+def visualizeCurrents(do, ax=None, show=False):
+    """
+    Plots the RE, Ohmic and total currents of given DREAM output file.
+
+    :param do:  DREAM output object.
+    :param ax:  matplotlib Axes object.
+    """
+    if ax is None:
+        ax = plt.axes()
+
+    try:
+        t = do.grid.t * 1e3
+        I_ohm = do.eqsys.j_ohm.current()
+        I_re = do.eqsys.j_re.current()
+        I_tot = do.eqsys.j_tot.current()
+
+        ax.plot(t, 1e-6*do.eqsys.j_ohm.current(), 'r', label='Ohm')
+        ax.plot(t, 1e-6*do.eqsys.j_re.current(), 'g', label='RE')
+        ax.plot(t, 1e-6*do.eqsys.j_tot.current(), 'b', label='total')
+
+    except AttributeError as err:
+        raise Exception('Output does not include needed data.') from err
+
+    ax.set_xlabel('time (ms)')
+    ax.set_ylabel('current (MA)')
+
+    if show:
+        plt.show()
+
+    return ax
 
 
 def getCQTime(I, t, tol=.05):
