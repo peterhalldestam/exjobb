@@ -17,7 +17,7 @@ except ModuleNotFoundError:
 from DREAM import DREAMSettings, DREAMException, runiface
 import DREAM.Settings.CollisionHandler as Collisions
 import DREAM.Settings.Equations.ColdElectronTemperature as Temperature
-import DREAM.Settings.Equations.ElectricField as ElectricField
+import DREAM.Settings.Equations.ElectricField as EField
 import DREAM.Settings.Equations.IonSpecies as Ions
 import DREAM.Settings.Equations.RunawayElectrons as RE
 import DREAM.Settings.Equations.HotElectronDistribution as FHot
@@ -140,8 +140,8 @@ def getBaseline(**kwargs):
     ds1.timestep.setNumberOfSaveSteps(200)
 
     # Enable self consistent evolution of E-field
-    ds1.eqsys.E_field.setType(ElectricField.TYPE_SELFCONSISTENT)
-    ds1.eqsys.E_field.setBoundaryCondition(ElectricField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=0, R0=Tokamak.R0)
+    ds1.eqsys.E_field.setType(EField.TYPE_SELFCONSISTENT)
+    ds1.eqsys.E_field.setBoundaryCondition(EField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=0, R0=Tokamak.R0)
 
     # Enable self consistent temperature evolution
     ds1.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
