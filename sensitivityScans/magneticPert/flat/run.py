@@ -66,7 +66,7 @@ plt.show()
 ds_init.eqsys.E_field.setPrescribedData(0)
 ds_init.eqsys.T_cold.setPrescribedData(T_init_profile, radius=rT0)
 ds_init.eqsys.n_i.addIon('D', Z=1, Z0=1, iontype=Ions.IONS_DYNAMIC, n=ne_profile*0.9, r=rn0, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
-ds_init.eqsys.n_i.addIon(name='Ar', Z=18, Z0=5, iontype=Ions.IONS_DYNAMIC, n=ne_profile*0.1, r=rn0)
+ds_init.eqsys.n_i.addIon(name='Ar', Z=18, Z0=5, iontype=Ions.IONS_DYNAMIC, n=ne_profile*0.15, r=rn0)
 
 
 """ First initialization simulation: calculates conductivity """
@@ -86,8 +86,8 @@ do = runiface(ds_init, 'init/output_current.h5', quiet=False) # Using the same t
 
 """ Main simulations: apply self-consistent temperature evolution """
 # Change to main time configuration
-t_max = 150e-3
-nt = 25e3
+t_max = 60e-3
+nt = 15e3
 t = np.linspace(0,t_max,nt)
 ds_init.timestep.setTmax(t_max)
 ds_init.timestep.setNt(nt)
@@ -111,12 +111,12 @@ ds_init.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATI
 # Run simulation for different uniform perturbations
 #dBB_list = np.linspace(1e-3, 5e-3, 5)
 r_dBB = np.array([0, 0.1])
-dBB = 0.8e-3 * np.ones(len(r_dBB))
+dBB = 1e-3 * np.ones(len(r_dBB))
 
 Drr, xi_grid, p_grid = utils.getRRCoefficient(dBB, R0=Tokamak.R0)
 Drr = np.tile(Drr, (int(nt),1,1,1))
 
-pstar_list = [0.3, 0.5, 0.7]
+pstar_list = [0.5]#[0.3, 0.5, 0.7]
 #for i, dBB in enumerate(dBB_list):
 for pstar in pstar_list:
 
