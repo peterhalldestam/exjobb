@@ -150,19 +150,23 @@ def getBaseline(**kwargs):
 
     # Enable magnetic pertubations that will allow for radial transport
     # OBS! The current version only supports a flat pertubation profile that is constant in time
+    r_dBB = np.array([0, 0.5*Tokamak.a])
+    dBB = dBB * np.ones(len(r_dBB))
+    
     Drr, xi_grid, p_grid = utils.getRRCoefficient(dBB, R0=Tokamak.R0) # Rechester-Rosenbluth diffusion operator
-    Drr = np.tile(Drr, (NT,2,1,1))
+    Drr = np.tile(Drr, (NT,1,1,1))
     t = np.linspace(0, Tmax, NT)
 
     pstar = 0.5	# Lower momentum boundry for runaway electrons in Svensson Transport [mc]
 
-    ds1.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB)
+    ds1.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB[0])
     ds1.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
+    
 
     ds1.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
     ds1.eqsys.n_re.transport.setSvenssonPstar(pstar)
     # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
-    ds1.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=np.array([0, 0.5*Tokamak.a]), p=p_grid, xi=xi_grid, interp1d=Transport.INTERP1D_NEAREST)
+    ds1.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r_dBB, p=p_grid, xi=xi_grid, interp1d=Transport.INTERP1D_NEAREST)
     ds1.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
 
     # Enable avalanche, hottail and Dreicer generation
