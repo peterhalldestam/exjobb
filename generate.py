@@ -29,6 +29,7 @@ import ITER as Tokamak
 
 # TSTOP = 100
 NT = 10000
+Tmax = 150e-3
 
 expDecay = True
 
@@ -134,7 +135,6 @@ def getBaseline(**kwargs):
     ds1.fromOutput('init_out.h5')
 
     # rest time stepper options
-    Tmax = 150e-3
     ds1.timestep.setTmax(Tmax)
     ds1.timestep.setNt(NT)
     ds1.timestep.setNumberOfSaveSteps(200)
@@ -149,9 +149,12 @@ def getBaseline(**kwargs):
 
 
     # Enable magnetic pertubations that will allow for radial transport
-    Drr = utils.getRRCoefficient(dBB, R0=Tokamak.R0) # Rechester-Rosenbluth diffusion operator
-    pstar = 0.5	# Lower momentum boundry for runaway electrons in Svensson Transport [mc]
+    # OBS! The current version only supports a flat pertubation profile that is constant in time
+    Drr, xi_grid, p_grid = utils.getRRCoefficient(dBB, R0=Tokamak.R0) # Rechester-Rosenbluth diffusion operator
+    Drr = np.tile(Drr, (NT,2,1,1))
     t = np.linspace(0, Tmax, NT)
+
+    pstar = 0.5	# Lower momentum boundry for runaway electrons in Svensson Transport [mc]
 
     ds1.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB)
     ds1.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
@@ -159,7 +162,7 @@ def getBaseline(**kwargs):
     ds1.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
     ds1.eqsys.n_re.transport.setSvenssonPstar(pstar)
     # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
-    ds1.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, interp1d=Transport.INTERP1D_NEAREST)
+    ds1.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=np.array([0, 0.5*Tokamak.a]), p=p_grid, xi=xi_grid, interp1d=Transport.INTERP1D_NEAREST)
     ds1.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
 
     # Enable avalanche, hottail and Dreicer generation

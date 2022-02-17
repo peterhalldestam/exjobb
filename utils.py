@@ -80,23 +80,37 @@ def getCQTime(I, t, tol=.05):
 	return (t_20 - t_80) / 0.6
 
 
-def getRRCoefficient(dBB, q=1, R0=tokamak.R0):
+def getRRCoefficient(dBB, q=1, R0=tokamak.R0, Svensson = True):
 	"""
 	Calculates the Rechester-Rosenbluth diffusion operator for runaway electrons under the assumption that v_p = c.
 
-	:param dBB:	0-2D array containing the magnetic pertubation spatial/transient profile.
+	:param dBB:	scalar or 1D array containing the magnetic pertubation spatial profile.
 	:param q:	scalar or 1D array representing the tokamak safety factor.
 	:param R0:	major radius of the tokamak [m].
+	:param Svensson:	boolean that if true calculates the coefficient on a pi-xi grid.
 	"""
 
 	if not isinstance(dBB, (int, float)):
-		assert len(dBB.shape) <= 2
+		assert len(dBB.shape) == 1
 
 		if not isinstance(q, (int, float)):
 			assert len(q) == dBB.shape[-1]
 
-	return np.pi * R0 * q * scp.constants.c * (dBB)**2
-
+	c = scp.constants.c
+	
+	if Svensson:
+		p_grid = np.linspace(0, 1.5, 60)
+		xi_grid = np.linspace(-1., 1., 45)
+		dBB_mesh, xi_mesh, p_mesh = np.meshgrid(dBB, xi_grid, p_grid, indexing='ij')
+		
+		D = np.pi * R0 * q * (dBB_mesh)**2 * np.abs(xi_mesh)*p_mesh * c/(np.sqrt(1 + p_mesh**2))
+		
+		return D, xi_grid, p_grid
+		
+	else:
+		D = np.pi * R0 * q * c * (dBB)**2
+		
+		return D
 
 def terminate(sim, Tstop):
     """
