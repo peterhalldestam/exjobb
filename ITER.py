@@ -151,5 +151,5 @@ def getCurrentDensity(r=None, nr=100):
     if r is None:
         r = np.linspace(0, a, nr)
 
-    return r, j0 * (1 - (r/a)**0.41)
-    # return r, j0 * (1 - (1-0.001**(1/0.41))*(r/a)**2)**0.41
+   # return r, j0 * (1 - (r/a)**0.41)
+    return r, j0 * (1 - (1-0.001**(1/0.41))*(r/a)**2)**0.41

@@ -37,10 +37,11 @@ def analyze(do, ax=None):
 	
 	I_re_max = np.amax(I_re)
 	t_CQ = current_quench_time(I_ohm, t)
-	Q_trans = np.sum(do.other.scalar.energyloss_T_cold[:]*dt)*R0
+	Q_trans = np.sum(do.other.scalar.energyloss_T_cold[:,0]*dt)*R0
 
 	if ax:
-		ax.plot(t*1e3, I_ohm[:]*1e-6, label = '$I_{\Omega}$')
+		#ax.plot(t*1e3, I_ohm[:]*1e-6, label = '$I_{\Omega}$')
+		ax.semilogy(t*1e3, I_ohm[:]*1e-6, label = '$I_{\Omega}$')
 		ax.plot(t*1e3, I_re[:]*1e-6, label = '$I_{RE}$')
 		ax.plot(t*1e3, I_tot[:]*1e-6, label = '$I_{tot}$')
 
@@ -49,7 +50,10 @@ def analyze(do, ax=None):
 
 if __name__ == '__main__':
 
-	outputs = sorted(glob.glob('output/*'))
+	#outputs = sorted(glob.glob('output/*'))
+	outputs = sorted(glob.glob('output/output_p*'))
+	outputs.append('output/output_regular.h5')
+	outputs.append('output/output_none.h5')
 
 	I_list = np.array([])
 	t_CQ_list = np.array([])
@@ -75,11 +79,16 @@ if __name__ == '__main__':
 	for i in range(len(outputs)):
 		do = do_list[i]
 		analyze(do, ax[i])
-		ax[i].set_title(f'dBB = {dBB_list[i]}')
-		ax[i].text(50, 14, '$\hat{I}_{RE}$'f'$={I_list[i]*1e-6:.3}$ MA', fontsize = 12)
-		ax[i].text(50, 13, '$t_{CQ}$'f'$={t_CQ_list[i]*1e3:.4}$ ms', fontsize = 12)
-		ax[i].text(50, 12, '$Q_{trans}$'f'$={Q_trans_list[i]*1e-9:.4}$ GJ', fontsize = 12)
+		#ax[i].set_title(f'dBB = {dBB_list[i]}')
+		ax[i].set_title(f'pstar = {outputs[i][20:-3]}')
+		#ax[i].text(50, 14, '$\hat{I}_{RE}$'f'$={I_list[i]*1e-6:.3}$ MA', fontsize = 12)
+		#ax[i].text(50, 13, '$t_{CQ}$'f'$={t_CQ_list[i]*1e3:.4}$ ms', fontsize = 12)
+		ax[i].text(10, 1e-14, '$Q_{trans}$'f'$={Q_trans_list[i]*1e-6:.4}$ MJ', fontsize = 12)
 		ax[i].set_xlabel('time [ms]')
+		
+	ax[-2].set_title('prescribed diffusion')
+	ax[-1].set_title('no runaway diffusion')		
+		
 		
 	ax[0].set_ylabel('current [MA]')
 	fig.legend(['$I_{\Omega}$', '$I_{RE}$', '$I_{tot}$'], fontsize = 15)

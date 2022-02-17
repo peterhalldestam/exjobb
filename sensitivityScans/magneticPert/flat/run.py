@@ -22,6 +22,7 @@ import DREAM.Settings.Equations.RunawayElectrons as Runaways
 import DREAM.Settings.TransportSettings as Transport
 
 import ITER as Tokamak
+import utils
 
 ds_init = DREAMSettings()
 
@@ -61,7 +62,6 @@ ax[2].set_ylabel('current [MA]')
 
 plt.show()
 
-
 """ Prescribe plasma parameters """
 ds_init.eqsys.E_field.setPrescribedData(0)
 ds_init.eqsys.T_cold.setPrescribedData(T_init_profile, radius=rT0)
@@ -86,8 +86,9 @@ do = runiface(ds_init, 'init/output_current.h5', quiet=False) # Using the same t
 
 """ Main simulations: apply self-consistent temperature evolution """
 # Change to main time configuration
-t_max = 160e-3
-nt = 24e3
+t_max = 150e-3
+nt = 25e3
+t = np.linspace(0,t_max,nt)
 ds_init.timestep.setTmax(t_max)
 ds_init.timestep.setNt(nt)
 ds_init.timestep.setNumberOfSaveSteps(400)
@@ -108,18 +109,54 @@ ds_init.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
 ds_init.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
 
 # Run simulation for different uniform perturbations
-dBB_list = np.linspace(1e-3, 5e-3, 5)
-for i, dBB in enumerate(dBB_list):
+#dBB_list = np.linspace(1e-3, 5e-3, 5)
+r_dBB = np.array([0, 0.1])
+dBB = 0.8e-3 * np.ones(len(r_dBB))
+
+Drr, xi_grid, p_grid = utils.getRRCoefficient(dBB, R0=Tokamak.R0)
+Drr = np.tile(Drr, (int(nt),1,1,1))
+
+pstar_list = [0.3, 0.5, 0.7]
+#for i, dBB in enumerate(dBB_list):
+for pstar in pstar_list:
 
 	ds_main = DREAMSettings(ds_init)
 	ds_main.other.include('fluid')
 	ds_main.other.include('scalar')
 	
-	ds_main.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB)
-	ds_main.eqsys.f_re.transport.setMagneticPerturbation(dBB=dBB)
+	ds_main.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB[0])
 	ds_main.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-	ds_main.eqsys.f_re.transport.setBoundaryCondition(Transport.BC_F_0)
 	
-	do = runiface(ds_main, f'output/output{i}.h5', quiet=False)
+	ds_main.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
+	ds_main.eqsys.n_re.transport.setSvenssonPstar(pstar)
+	# Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
+	ds_main.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r_dBB, p=p_grid, xi=xi_grid, interp1d=Transport.INTERP1D_NEAREST)
+	ds_main.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+	
+	#do = runiface(ds_main, f'output/output{i}.h5', quiet=False)
+	do = runiface(ds_main, f'output/output_pstar_{pstar}.h5', quiet=False)
+
+ds_main = DREAMSettings(ds_init)
+ds_main.other.include('fluid')
+ds_main.other.include('scalar')
+
+ds_main.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB[0])
+ds_main.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
+
+Drr = utils.getRRCoefficient(dBB, R0=Tokamak.R0, Svensson=False)
+Drr = np.tile(Drr, (int(nt),1))
+ds_main.eqsys.n_re.transport.prescribeDiffusion(drr=Drr, r=r_dBB, t=t)
+ds_main.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+
+do = runiface(ds_main, 'output/output_regular.h5', quiet=False)
+
+ds_main = DREAMSettings(ds_init)
+ds_main.other.include('fluid')
+ds_main.other.include('scalar')
+
+ds_main.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB[0])
+ds_main.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
+
+do = runiface(ds_main, 'output/output_none.h5', quiet=False)
 
 
