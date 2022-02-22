@@ -32,7 +32,144 @@ import ITER as Tokamak
 # TSTOP = 100
 NT = 10000
 
-expDecay = True
+TQ_EXPDECAY = 1
+TQ_PERTURB  = 2
+
+
+
+class Simulation:
+
+
+
+    # baseline input parameters (for now only scalars)
+    baseline = {'nD':   Tokamak.ne0,
+                'nT':   0.,
+                'nAr':  0.,
+                'dBB':  0.}
+
+    def __init__(self, quiet=False, **inputs):
+        """
+        Construct baseline disruption simulation either from default parameters
+        or from given set values. The entire electron population is modelled as
+        two fluids n_cold and n_re ......
+
+            :param dict inputs:     Python dictionary of input parameters.
+            :param bool quiet:      Run with terminal messenges suppressed.
+        """
+        # Set input from baseline or from any user provided input parameters.
+        self.input = Simulation.baseline
+        if inputs:
+            print('User provided the following input arguments:')
+            for i, (key, value) in enumerate(inputs.items()):
+                if key in Simulation.baseline.keys():
+                    print(f'\t({i+1}) {key} \t= {value}')
+                    self.input[key] = value
+                else:
+                    raise Exception(f'Did not expect keyword argument: {key}={value}')
+
+
+        self.quiet = quiet
+        self.out = 'out.h5'
+        self.doubleIterations = True
+
+        #### Set the disruption sequences in order ####
+        self.ds = DREAMSettings()
+
+        # Disable kinetic grids (we run purely fluid simulations)
+        self.ds.hottailgrid.setEnabled(False)
+        self.ds.runawaygrid.setEnabled(False)
+
+        self._setMagneticField()
+        self._setCollisions()
+        self._setInitialPlasmaComposition()
+
+    def _setMagneticField(self):
+        """
+        Set the analytical toroidal magnetic field.
+        """
+        Tokamak.setMagneticField(self.ds)
+
+
+    def _setCollisions(self):
+        """
+        Set collision settings.
+        """
+        self.ds.collisions.collfreq_mode        = Collisions.COLLFREQ_MODE_FULL
+        self.ds.collisions.collfreq_type        = Collisions.COLLFREQ_TYPE_PARTIALLY_SCREENED
+        self.ds.collisions.bremsstrahlung_mode  = Collisions.BREMSSTRAHLUNG_MODE_STOPPING_POWER
+        self.ds.collisions.lnlambda             = Collisions.LNLAMBDA_ENERGY_DEPENDENT
+
+
+    def _setInitialPlasmaComposition(self):
+        """
+        Set the initial plasma composition, namely the fuel + any impurities.
+        """
+        # Add hydrogen ion populations
+        if self.input['nH'] > 0:
+            ds.eqsys.n_i.addIon('H', n=self.input['nH'], Z=1, Z0=1, iontype=Ions.IONS_DYNAMIC,
+                                opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+        if self.input['nD'] > 0:
+            ds.eqsys.n_i.addIon('D', n=self.input['nD'], Z=1, Z0=1, iontype=Ions.IONS_DYNAMIC,
+                                opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+        if self.input['nT'] > 0:
+            ds.eqsys.n_i.addIon('T', n=self.input['nT'], Z=1, Z0=1, tritium=True, iontype=Ions.IONS_DYNAMIC,
+                                opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+
+        # Add impurities
+        if self.input['nAr'] > 0:
+            ds.eqsys.n_i.addIon('Ar', n=self.input['nAr'], Z=18, Z0=5, iontype=Ions.IONS_DYNAMIC,
+                                opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+        # ...
+
+
+
+
+
+
+
+
+    def run(self, doubleIterations=None):
+        """
+        Run simulation.
+        """
+        do = None
+        if doubleIterations is not None:
+            self.doubleIterations = doubleIterations
+        try:
+            do = runiface(ds, name)
+        except DREAMException as err:
+            if self.doubleIterations:
+                global NT
+                if NT >= 1e7:
+                    print(err)
+                    print('ERROR : Skipping this simulation!')
+                else:
+                    print(err)
+                    print(f'WARNING : Number of iterations is doubled from {NT} to {2*NT}!')
+                    NT *= 2
+                    simulate(ds, name=name, doubleIterations=True)
+        return do
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def getBaseline(**kwargs):
     """
@@ -108,7 +245,7 @@ def getBaseline(**kwargs):
     ds.timestep.setNt(1)
 
     # Calculate the conductivity
-    do = runiface(ds, quiet=False)
+    do = runiface(ds, quiet=True)
 
     ############################################################################
     # STEP 2 : Obtain initial current density profile
@@ -156,14 +293,14 @@ def getBaseline(**kwargs):
     pstar = 0.5	# Lower momentum boundry for runaway electrons in Svensson Transport [mc]
     t = np.linspace(0, Tmax, NT)
 
-    # ds1.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB)
-    # ds1.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
+    ds1.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB)
+    ds1.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
 
-    # ds1.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
-    # ds1.eqsys.n_re.transport.setSvenssonPstar(pstar)
-    # # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
-    # ds1.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, interp1d=Transport.INTERP1D_NEAREST)
-    # ds1.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+    ds1.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
+    ds1.eqsys.n_re.transport.setSvenssonPstar(pstar)
+    # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
+    ds1.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, interp1d=Transport.INTERP1D_NEAREST)
+    ds1.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
 
     # Configure RE generation
     ds1.eqsys.n_re.setDreicer(RE.DREICER_RATE_NEURAL_NETWORK)
@@ -208,8 +345,6 @@ def simulate(ds, name='out.h5', doubleIterations=True):
     do = None
     try:
         do = runiface(ds, name)
-        # s = dreampyface.setup_simulation(ds)
-        # do = s.run()
     except DREAMException as err:
         if doubleIterations:
             global NT
@@ -218,15 +353,13 @@ def simulate(ds, name='out.h5', doubleIterations=True):
                 print('ERROR : Skipping this simulation!')
             else:
                 print(err)
-                sys.exit()
                 print(f'WARNING : Number of iterations is doubled from {NT} to {2*NT}!')
                 NT *= 2
                 simulate(ds, name=name, doubleIterations=True)
     return do
 
 def main():
-    ds = getBaseline(nD=Tokamak.ne0 * .8)
-    do = simulate(ds)
+    Simulation(quiet=False, dBB=12.3)
     return 0
 
 if __name__ == '__main__':
