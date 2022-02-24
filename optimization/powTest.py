@@ -2,17 +2,17 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from powell import powellOpt, naiveOpt
+from optimization import powell, naive
 
-theta = np.pi/4
+theta = np.pi * 2/7
 fun = lambda x,y: 1*(x*np.cos(theta) - y*np.sin(theta) - 2)**2 + 2*(x*np.sin(theta) + y*np.cos(theta) - 2)**2
 
 x = np.linspace(-1, 5)
 y = np.linspace(-5, 5)
 
 
-P0 = np.array([0., -4.])
-Ptrack = powellOpt(fun, P0, ftol=1e-2)
+P0 = np.array([0., -3.9])
+Ptrack = powell(fun, P0, ftol=5e-1, verbose=True)
 
 numbers = np.arange(1, len(Ptrack)+1)
 

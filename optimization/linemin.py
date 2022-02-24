@@ -114,7 +114,7 @@ def Brent(fun, bracket, tol=1e-2, maxIter=1000, verbose=False):
             break
             
         # Trial parabolic fit
-        if (np.abs(e) > tol1) and i > 1:
+        if (np.abs(e) > tol1):
             r = (x-w)*(fx-fv)
             q = (x-v)*(fx-fw)
             p = (x-v)*q - (x-w)*r
@@ -126,13 +126,14 @@ def Brent(fun, bracket, tol=1e-2, maxIter=1000, verbose=False):
             e = d
             
             # Determines acceptability of parabolic fit
-            if (abs(p) <= abs(0.5*q*etemp)) and (p >= q*(a-x)) and (p <= q*(b-x)):
+            if (abs(p) < abs(0.5*q*etemp)) and (p > q*(a-x)) and (p < q*(b-x)):
                 d = p/q
                 u = x+d
                 if (u-a < tol2) or (b-u < tol2):
                     d = tol1 * np.sign(xm-x)
                 gold = False
             
+                #print(p, q)
         # Golden section step (into the larger of the two segments)
         if (x >= xm) and gold:
             e = a-x
