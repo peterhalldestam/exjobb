@@ -12,9 +12,8 @@ try:
     import DREAM
 except ModuleNotFoundError:
     import sys
-    sys.path.append('/home/pethalld/DREAM/py')
-    sys.path.append('/home/peterhalldestam/DREAM/py')
-    sys.path.append('/home/hannber/DREAM/py')
+    for dp in utils.DREAMPATHS:
+        sys.path.append(dp)
     import DREAM
 
 from DREAM import DREAMSettings, DREAMException, runiface
@@ -145,7 +144,7 @@ class DREAMSimulation(Simulation):
 
         # Set initial temperature profile
         rT, T = Tokamak.getInitialTemperature(self.input['T0'], self.input['T1'])
-        self.ds.eqsys.T_cold.setPrescribedData(T, radius=rT)
+        self.ds.eqsys.T_cold.setInitialProfile(T, radius=rT)
 
         # Background free electron density from ions
         nfree, rn0 = self.ds.eqsys.n_i.getFreeElectronDensity()
@@ -209,18 +208,6 @@ class DREAMSimulation(Simulation):
             else:
                 raise err
         return do
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
