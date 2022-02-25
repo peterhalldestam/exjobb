@@ -30,7 +30,7 @@ import DREAM.Settings.TransportSettings as Transport
 
 # TSTOP = 100
 TMAX = 1.5e-1
-NT = 10000
+NT = 100
 NR = 20
 
 TQ_EXPDECAY = 1
@@ -65,7 +65,7 @@ class DREAMSimulation(Simulation):
         'Ip0':  15e6,
 
         # Initial temperature profile T(r) = T0*(1-T1*(r/a)^2)
-        'T0':   20e3,
+        'T0':   2e4,
         'T1':   .99,
 
         # Magnetic pertubation (post TQ) dBB(r) ~ 1+dBB1*r^2, integral(dBB) = dBB0
@@ -183,7 +183,17 @@ class DREAMSimulation(Simulation):
             self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
 
 
+            # ds1.timestep.setTerminationFunction(lambda s: terminate(s, TSTOP))
 
+
+        elif tq == TQ_EXPDECAY:
+
+            # Set prescribed temperature evolution
+            self.ds.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
+
+            # Set exponential-decay temperature
+            t, r, T = Tokamak.getTemperatureEvolution(self.input['T0'], self.input['T0'], tmax=TMAX, nt=NT)
+            ds.eqsys.T_cold.setPrescribedData(T, radius=r, times=t)
 
     def run(self, doubleIterations=None):
         """
@@ -217,6 +227,7 @@ def main():
     s = DREAMSimulation(quiet=False)
     do = s.run(doubleIterations=False)
     utils.visualizeCurrents(do, show=True)
+    print(utils.getCQTime(do))
     return 0
 
 if __name__ == '__main__':

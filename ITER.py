@@ -4,6 +4,8 @@
 
 import numpy as np
 
+import utils
+
 try:
     import DREAM.Settings.RadialGrid as RadialGrid
 except:
@@ -76,47 +78,31 @@ def getInitialTemperature(T0, T1):
 
 
 
-def getFinalTemperature(r=None, nr=100):
+def getFinalTemperature():
     """
     Returns the final temperature profile.
-
-    :param r:      Minor radius (m). May be either scalar or numpy.ndarray.
-    :param int nr: Radial grid resolution to use if ``r = None``.
     """
-    global a
+    global a, NR
 
-    if r is None:
-        r = np.linspace(0, a, nr)
-    elif type(r) == float or type(r) == int:
-        r = np.array([float(r)])
+    r = np.linspace(0, a, NR)
 
     # Flat temperature profile
     return r, 50*np.ones(r.shape)
 
 
-def getTemperatureEvolution(tau0, nt=100):
+def getTemperatureEvolution(T0, T1, tau0=t0, T_final=50, tmax=1.5e-1, nt=100):
     """
     Returns the spatiotemporal temperature profile
-
-    :param float tau0: Time decay parameter.
     """
-    r, T0 = getInitialTemperature()
-    _, Tf = getFinalTemperature(r)
+    r, T_initial = getInitialTemperature()
+    _, T_final = getFinalTemperature()
 
-    # Let the temperature drop until the central temperature is T~100 eV
-    #maxt = -tau0 * np.log((100 - Tf[0]) / (T0[0] - Tf[0]))
-    maxt = 6e-3
+    t = np.linspace(0, tmax, nt).reshape((nt,1))
 
-    # Generate time grid
-    t = np.linspace(0, maxt, nt).reshape((nt,1))
+    T_initial = T_initial.reshape((1, r.size))
+    T_final = T_final.reshape((1, r.size))
 
-    # Reshape
-    nr = r.size
-    T0 = T0.reshape((1,nr))
-    Tf = Tf.reshape((1,nr))
-
-    # Calculate temperature evolution
-    T = Tf + (T0 - Tf) * np.exp(-t/tau0)
+    T = T_final + (T_initial - T_final) * np.exp(-t/tau0)
     t = t.reshape((nt,))
 
     return t, r, T
