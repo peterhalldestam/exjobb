@@ -39,7 +39,7 @@ def visualizeCurrents(do, ax=None, show=False):
         ax.plot(t, I_tot, 'b', label='total')
 
     except AttributeError as err:
-        raise Exception('Output does not include needed data.') from err
+        raise Exception('Output object does not include needed data.') from err
 
     ax.set_xlabel('time (ms)')
     ax.set_ylabel('current (MA)')
@@ -73,14 +73,34 @@ def getCQTime(do, tol=.05):
 	return (t_20 - t_80) / 0.6
 
 
-def getRRCoefficient(dBB, q=1, R0=1., svensson = True):
-	"""
-	Calculates the Rechester-Rosenbluth diffusion operator for runaway electrons under the assumption that v_p = c.
+def getQuadraticMagneticPerturbation(ds, dBB0, dBB1):
+    """
+    Returns a quadratic profile for the magnetic pertubation, given the
+    paramaters dBB0 (defining the integral of dBB) and dBB1. The latter controls
+    the profile shape: dBB(r) ~ 1 + dBB1 * r^2.
+    """
+    try:
+        r = do.grid.r
+        assert r.size > 1
+        integrate = lambda x: do.grid.integrate(x)
+    except AttributeError as err:
+        raise Exception('Settings object does not include a radial grid.') from err
 
-	:param dBB:	        scalar or 1D array containing the magnetic pertubation spatial profile.
-	:param q:	        scalar or 1D array representing the tokamak safety factor.
-	:param R0:	        major radius of the tokamak [m].
-	:param svensson:	boolean that if true calculates the coefficient on a pi-xi grid.
+    dBB = 1 + dBB1 * r**2
+    return r, dBB * dBB0 / integrate(dBB)
+
+
+def getDiffusionOperator(dBB, q=1, R0=1., svensson=True):
+	"""
+	Returns the Rechester-Rosenbluth diffusion operator for REs travelling at the
+    speed of light.
+
+	:param dBB:	        Scalar or 1D array containing the magnetic pertubation
+                        spatial profile.
+	:param q:	        Scalar or 1D array representing the tokamak safety factor.
+	:param R0:	        Major radius of the tokamak [m].
+	:param svensson:	Boolean that if true calculates the coefficient on a
+                        pi-xi grid.
 	"""
 	if not isinstance(dBB, (int, float)):
 		assert len(dBB.shape) == 1
@@ -100,7 +120,7 @@ def getRRCoefficient(dBB, q=1, R0=1., svensson = True):
 		return D, xi_grid, p_grid
 
 	else:
-		D = np.pi * R0 * q * c * (dBB)**2
+		D = np.pi * R0 * q * c * dBB**2
 
 		return D
 
