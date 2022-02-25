@@ -77,7 +77,6 @@ def getInitialTemperature(T0, T1):
     return r, T
 
 
-
 def getFinalTemperature():
     """
     Returns the final temperature profile.
@@ -106,18 +105,6 @@ def getTemperatureEvolution(T0, T1, tau0=t0, T_final=50, tmax=1.5e-1, nt=100):
     t = t.reshape((nt,))
 
     return t, r, T
-
-
-def getInitialDensity(r=None, nr=100):
-    """
-    Returns the initial electron density profile.
-    """
-    global a, ne0
-
-    if r is None:
-        r = np.linspace(0, a, nr)
-
-    return r, ne0 * np.ones(r.shape)
 
 
 def getInitialCurrentDensity(j1, j2):

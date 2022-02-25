@@ -2,15 +2,15 @@ import numpy as np
 
 class Simulation:
 
-    def __init__(self, baseline, quiet=False, **inputs):
+    def __init__(self, baseline, id=None, quiet=False, **inputs):
         """
         Constructor.
         """
         self.input = baseline
         self.output = None
         self.objFun = None
+        self.id = id
         self.quiet = quiet
-        self.finished = False
 
         # Set input from any user provided input parameters.
         if inputs:
@@ -29,6 +29,8 @@ class Simulation:
         """
         Run simulation and update output.
         """
-        self.finished = True
         self.output = None
         pass
+
+    def isFinished(self):
+        return self.output is not None

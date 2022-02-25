@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
+import pathlib
 import numpy as np
 
 
@@ -14,6 +15,7 @@ except ModuleNotFoundError:
     import sys
     for dp in utils.DREAMPATHS:
         sys.path.append(dp)
+        # sys.path.append(f'{dp}/build/dreampyface/cxx/')
     import DREAM
 
 from DREAM import DREAMSettings, DREAMException, runiface
@@ -26,7 +28,7 @@ import DREAM.Settings.Equations.HotElectronDistribution as FHot
 import DREAM.Settings.Solver as Solver
 import DREAM.Settings.TransportSettings as Transport
 
-
+import dreampyface
 
 # TSTOP = 100
 TMAX = 1.5e-1
@@ -37,8 +39,11 @@ TQ_EXPDECAY = 1
 TQ_PERTURB  = 2
 
 TQ_TIME_DECAY = 1e-3
-TQ_INITIAL_DBB = 1.5e-3
+TQ_TMAX = 3 * TQ_TIME_DECAY
+TQ_INITIAL_dBB0 = 1.5e-3
 
+SETTINGS_DIR    = 'settings/'
+OUTPUT_DIR      = 'outputs/'
 
 class DREAMSimulation(Simulation):
     """
@@ -73,18 +78,21 @@ class DREAMSimulation(Simulation):
         'dBB1': 0.
     }
 
-    def __init__(self, tq=TQ_PERTURB, quiet=False, out='out.h5', **inputs):
+    def __init__(self, tq=TQ_PERTURB, id='', quiet=False, **inputs):
         """
         Set input from baseline or from any user provided input parameters.
         """
-        super().__init__(DREAMSimulation.baseline, quiet=quiet, **inputs)
+        super().__init__(DREAMSimulation.baseline, id=id, quiet=quiet, **inputs)
 
-        self.quiet = quiet
-        self.out = out
-        self.doubleIterations = True
+        self.outputFile         = f'{OUTPUT_DIR}{id}output.h5'
+        self.settingsFile       = f'{SETTINGS_DIR}{id}settings.h5'
+        self.doubleIterations   = True
 
         #### Set the disruption sequences in order ####
         self.ds = DREAMSettings()
+
+        # Set timestep to be fixed throughout the entire simulation
+        self.ds.timestep.setDt(TMAX / NT)
 
         # Set solvers
         self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
@@ -94,10 +102,6 @@ class DREAMSimulation(Simulation):
         self.ds.solver.tolerance.set(reltol=2e-6)
         self.ds.solver.tolerance.set(unknown='n_re', reltol=2e-6, abstol=1e5)
         self.ds.solver.tolerance.set(unknown='j_re', reltol=2e-6, abstol=1e-5) # j ~ e*c*n_e ~ n_e*1e-10 ?
-
-        # Set time stepper settings
-        self.ds.timestep.setTmax(TMAX)
-        self.ds.timestep.setNt(NT)
 
         # Disable kinetic grids (we run purely fluid simulations)
         self.ds.hottailgrid.setEnabled(False)
@@ -154,74 +158,116 @@ class DREAMSimulation(Simulation):
         self.ds.eqsys.f_hot.setBoundaryCondition(bc=FHot.BC_F_0)
 
 
+    def run(self, tq=None, doubleIterations=True):
+        """
+        Run simulation
+        """
+        assert self.output is None, \
+            f'Output object already exists!'
+
+        if doubleIterations is not None:
+            self.doubleIterations = doubleIterations
+
         # Thermal quench model
-        if tq == TQ_PERTURB:
+        if self.tq == TQ_PERTURB:    # (Not working due to problems with DREAM branch origin/theater)
 
-            # Enable self consistent temperature evolution
-            self.ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
-            self.ds.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
-
-            # Enable magnetic pertubations that will allow for radial transport
-            # OBS! The current version only supports a flat pertubation profile that is constant in time
-            r_dBB = np.array([0, 0.5*Tokamak.a])    # que?
-            dBB = TQ_INITIAL_DBB * np.ones(len(r_dBB))
-
-            # Rechester-Rosenbluth diffusion operator
-            Drr, xi_grid, p_grid = utils.getRRCoefficient(dBB, R0=Tokamak.R0)
-            Drr = np.tile(Drr, (NT,1,1,1))
-            t = np.linspace(0, TMAX, NT)
-
-
-            self.ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB[0])
-            self.ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-
-
-            self.ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
-            self.ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
-            # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
-            self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r_dBB, p=p_grid, xi=xi_grid, interp1d=Transport.INTERP1D_NEAREST)
-            self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
-
+            # Set edge vanishing TQ magnetic pertubation
+            r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, TQ_INITIAL_dBB0, -1/Tokamak.a**2)
+            _setSvenssonTransport(dBB, r)
 
             # ds1.timestep.setTerminationFunction(lambda s: terminate(s, TSTOP))
+            # self.run(dreampyface=True)
 
+            ds = DREAMSettings(self.ds)
+            #...
 
-        elif tq == TQ_EXPDECAY:
+        elif self.tq == TQ_EXPDECAY:
 
             # Set prescribed temperature evolution
             self.ds.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
 
             # Set exponential-decay temperature
-            t, r, T = Tokamak.getTemperatureEvolution(self.input['T0'], self.input['T0'], tmax=TMAX, nt=NT)
+            t, r, T = Tokamak.getTemperatureEvolution(self.input['T0'], self.input['T1'], tmax=TMAX, nt=NT)
             ds.eqsys.T_cold.setPrescribedData(T, radius=r, times=t)
 
-    def run(self, doubleIterations=None):
+            # Set time stepper settings
+            self.ds.timestep.setTmax(TQ_TMAX)
+
+            do = self._run()
+
+            ds = DREAMSettings(self.ds)
+
+
+
+    def _setSvenssonTransport(self, dBB, radius):
         """
-        Run simulation.
+        Configures the Svensson transport settings.
+        """
+        assert dBB.shape == radius.shape
+
+        # Enable self consistent temperature evolution
+        self.ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
+        self.ds.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
+
+        # Enable magnetic pertubations that will allow for radial transport
+        self.ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
+
+        self.ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB, r=r)
+
+        # Rechester-Rosenbluth diffusion operator
+        Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
+        Drr = np.tile(Drr, (NT,1,1,1))
+        t = np.linspace(0, TMAX, NT)
+
+        self.ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
+        self.ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
+        # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
+        self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r_dBB, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
+        self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+
+
+
+    def _run(self, doubleIterations=None, dreampyface=False, ntmax=1e7):
+        """
+        Run simulation and rerun simulation with a doubled number of timesteps
+        if it crashes.
         """
         do = None
         if doubleIterations is not None:
             self.doubleIterations = doubleIterations
         try:
-            do = runiface(self.ds, 'test.h5')
+            if dreampyface:
+                s = dreampyface.setup_simulation(self.ds)
+                do = s.run()
+            else:
+                do = runiface(self.ds)
         except DREAMException as err:
             if self.doubleIterations:
-                global NT
-                if NT >= 1e7:
+                nt = self.ds.timestep.nt
+                if nt >= ntmax:
                     print(err)
                     print('ERROR : Skipping this simulation!')
                 else:
                     print(err)
-                    print(f'WARNING : Number of iterations is doubled from {NT} to {2*NT}!')
-                    NT *= 2
-                    simulate(ds, name=name, doubleIterations=True)
+                    print(f'WARNING : Number of iterations is doubled from {nt} to {2*nt}!')
+                    self.ds.timestep.setNt(2*nt)
+                    run(doubleIterations=True, dreampyface=dreampyface)
             else:
                 raise err
         return do
 
+    def _getFileName(self, str: io, str: dir):
+        """
+        Returns appropriate name of file and makes sure its directory exists.
+        """
+        filename = f'{dir}{self.id}_{io}.h5'
 
+        # Create directory if needed
+        p = pathlib.Path(filename).parent.resolve()
+        if not p.exists():
+            p.mkdir(parents=True)
 
-
+        return p.resolve()
 
 def main():
     s = DREAMSimulation(quiet=False)

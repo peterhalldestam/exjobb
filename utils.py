@@ -111,17 +111,14 @@ def getDiffusionOperator(dBB, q=1, R0=1., svensson=True):
 	c = scp.constants.c
 
 	if svensson:
-		p_grid = np.linspace(0, 1.5, 60)
-		xi_grid = np.linspace(-1., 1., 45)
-		dBB_mesh, xi_mesh, p_mesh = np.meshgrid(dBB, xi_grid, p_grid, indexing='ij')
-
-		D = np.pi * R0 * q * (dBB_mesh)**2 * np.abs(xi_mesh)*p_mesh * c/(np.sqrt(1 + p_mesh**2))
-
-		return D, xi_grid, p_grid
+		p = np.linspace(0, 1.5, 60)
+		xi = np.linspace(-1., 1., 45)
+		dBB, xi, p = np.meshgrid(dBB, xi, p, indexing='ij')
+		D = np.pi * R0 * q * dBB**2 * np.abs(xi) * p * c/(np.sqrt(1 + p**2))
+		return D, xi, p
 
 	else:
 		D = np.pi * R0 * q * c * dBB**2
-
 		return D
 
 def terminate(sim, Tstop):
