@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.constants as const
 
-def findBracket(fun, p0, gamma=2):
+def findBracket(fun, p0, bounds, gamma=2):
     """
     Simple algorithm used to initially bracket a local minimum by expontentially increasing step sizes.
     
@@ -12,6 +12,9 @@ def findBracket(fun, p0, gamma=2):
 
     ax = p0[0]; bx = p0[1]
     fa = fun(ax); fb = fun(bx)
+    lx = bounds[0]; ux = bounds[1]
+    
+    swap = False
     
     if fb > fa:
         dum = bx
@@ -22,15 +25,28 @@ def findBracket(fun, p0, gamma=2):
         fb = fa
         fa = dum
         
+        swap = True
+        
     cx = bx + gamma*(bx-ax)
     fc = fun(cx)
     
     while fc <= fb:
         gamma *= 2
         cx = bx + gamma*(bx-ax)
+        
+        if cx > ux:
+            cx = ux
+            break
+        elif cx < lx:
+            cx = lx
+            break
+        
         fc = fun(cx)
     
-    return (ax, bx, cx)
+    if swap:
+        return (cx, bx, ax)
+    else:
+        return (ax, bx, cx)
 
 def goldenSectionSearch(fun, bracket, tol=1e-2, verbose=False):
     """
@@ -133,7 +149,6 @@ def Brent(fun, bracket, tol=1e-2, maxIter=1000, verbose=False):
                     d = tol1 * np.sign(xm-x)
                 gold = False
             
-                #print(p, q)
         # Golden section step (into the larger of the two segments)
         if (x >= xm) and gold:
             e = a-x
