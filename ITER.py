@@ -77,23 +77,23 @@ def getInitialTemperature(T0, T1):
     return r, T
 
 
-def getFinalTemperature():
+def getFinalTemperature(T0=50):
     """
     Returns the final temperature profile.
     """
     global a, NR
 
     r = np.linspace(0, a, NR)
-
+    T = T0 * np.ones(NR)
     # Flat temperature profile
-    return r, 50*np.ones(r.shape)
+    return r, T
 
 
 def getTemperatureEvolution(T0, T1, tau0=t0, T_final=50, tmax=1.5e-1, nt=100):
     """
     Returns the spatiotemporal temperature profile
     """
-    r, T_initial = getInitialTemperature()
+    r, T_initial = getInitialTemperature(T0, T1)
     _, T_final = getFinalTemperature()
 
     t = np.linspace(0, tmax, nt).reshape((nt,1))
