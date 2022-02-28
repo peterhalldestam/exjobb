@@ -73,7 +73,6 @@ def getInitialTemperature(T0, T1):
 
     r = np.linspace(0, a, NR)
     T = T0 * (1 - T1 * (r/a)**2)
-    print(T.shape, r.shape)
     return r, T
 
 

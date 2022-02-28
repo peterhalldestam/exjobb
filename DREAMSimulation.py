@@ -28,16 +28,13 @@ import DREAM.Settings.Equations.HotElectronDistribution as FHot
 import DREAM.Settings.Solver as Solver
 import DREAM.Settings.TransportSettings as Transport
 
-import dreampyface
-
 # TSTOP = 100
 TMAX = 1.5e-1
 NT = 100
 NR = 20
 
-TQ_EXPDECAY = 1
-TQ_PERTURB  = 2
-
+# thermal quench settings
+EXP_DECAY = True
 TQ_TIME_DECAY = 1e-3
 TQ_TMAX = 3 * TQ_TIME_DECAY
 TQ_INITIAL_dBB0 = 1.5e-3
@@ -78,13 +75,12 @@ class DREAMSimulation(Simulation):
         'dBB1': 0.
     }
 
-    def __init__(self, tq=TQ_PERTURB, id='', quiet=False, **inputs):
+    def __init__(self, id='', verbose=True, **inputs):
         """
         Set input from baseline or from any user provided input parameters.
         """
-        super().__init__(DREAMSimulation.baseline, id=id, quiet=quiet, **inputs)
+        super().__init__(DREAMSimulation.baseline, id=id, verbose=verbose, **inputs)
 
-        self.tq = tq
         self.outputFile         = f'{OUTPUT_DIR}{id}output.h5'
         self.settingsFile       = f'{SETTINGS_DIR}{id}settings.h5'
         self.doubleIterations   = True
@@ -109,7 +105,7 @@ class DREAMSimulation(Simulation):
         self.ds1.hottailgrid.setEnabled(False)
         self.ds1.runawaygrid.setEnabled(False)
 
-        # Set the magnetic field from specified Tokamak (see imports)
+        # Set the magnetic field from specified Tokamak (see imports)print
         Tokamak.setMagneticField(self.ds1)
 
         # Set collision settings
@@ -160,30 +156,15 @@ class DREAMSimulation(Simulation):
         self.ds1.eqsys.f_hot.setBoundaryCondition(bc=FHot.BC_F_0)
 
 
-    def run(self, tq=None, doubleIterations=True):
+    def run(self, doubleIterations=True):
         """
         Run simulation
         """
         assert self.output is None, \
             f'Output object already exists!'
 
-        if tq is not None:
-            self.tq = tq
+        if EXP_DECAY:
 
-        if self.tq == TQ_PERTURB:    # (Not working due to problems with DREAM branch origin/theater)
-            raise NotImplementedError('TQ_PERTURB is not yet implemented...')
-
-            # Set edge vanishing TQ magnetic pertubation
-            r, dBB = utils.getQuadraticMagneticPerturbation(self.ds1, TQ_INITIAL_dBB0, -1/Tokamak.a**2)
-            self._setSvenssonTransport(self.ds1, dBB, r)
-
-            # ds1.timestep.setTerminationFunction(lambda s: terminate(s, TSTOP))
-            # self.run(dreampyface=True)
-
-            self.ds = DREAMSettings(self.ds1)
-            #...
-
-        elif self.tq == TQ_EXPDECAY:
 
             ##### TQ (prescribed exponential decay in temperature) #####
 
@@ -221,6 +202,18 @@ class DREAMSimulation(Simulation):
             self.ds2.save(self._getFileName('pTQ_setting', SETTINGS_DIR))
             self._run()
 
+        else: # (Not working due to problems with DREAM branch origin/theater)
+            raise NotImplementedError('TQ_PERTURB is not yet implemented...')
+
+            # Set edge vanishing TQ magnetic pertubation
+            r, dBB = utils.getQuadraticMagneticPerturbation(self.ds1, TQ_INITIAL_dBB0, -1/Tokamak.a**2)
+            self._setSvenssonTransport(self.ds1, dBB, r)
+
+            # ds1.timestep.setTerminationFunction(lambda s: terminate(s, TSTOP))
+            # self.run(dreampyface=True)
+
+            self.ds = DREAMSettings(self.ds1)
+            #...
 
 
     def _setSvenssonTransport(self, ds, dBB, radius):
@@ -235,7 +228,6 @@ class DREAMSimulation(Simulation):
 
         # Enable magnetic pertubations that will allow for radial transport
         ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-
         ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB, r=radius)
 
         # Rechester-Rosenbluth diffusion operator
@@ -243,12 +235,12 @@ class DREAMSimulation(Simulation):
         Drr = np.tile(Drr, (NT,1,1,1))
         t = np.linspace(0, TMAX, NT)
 
-        ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
-        ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
-
-        # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
-        ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=radius, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
-        ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+        # ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
+        # ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
+        #
+        # # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
+        # ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=radius, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
+        # ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
 
 
 
@@ -265,7 +257,7 @@ class DREAMSimulation(Simulation):
                 s = dreampyface.setup_simulation(self.ds1)
                 do = s.run()
             else:
-                do = runiface(self.ds1)
+                do = runiface(self.ds1, quiet=not self.verbose)
         except DREAMException as err:
             if self.doubleIterations:
                 nt = self.ds1.timestep.nt
@@ -295,8 +287,21 @@ class DREAMSimulation(Simulation):
 
         return str(fp.absolute())
 
+
+
+
 def main():
-    s = DREAMSimulation(tq=TQ_EXPDECAY, id=0, quiet=False)
+
+    # Set to exponential decay in TQ if dreampyface doesn't exist
+    global EXP_DECAY
+    if not EXP_DECAY:
+        try:
+            import dreampyface
+        except ModuleNotFoundError as err:
+            EXP_DECAY = True
+            print('ERROR: Python module dreampyface not found. Switchin to exp-decay...')
+
+    s = DREAMSimulation()
     do = s.run(doubleIterations=False)
     utils.visualizeCurrents(do, show=True)
     print(utils.getCQTime(do))
