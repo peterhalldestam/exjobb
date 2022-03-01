@@ -32,38 +32,6 @@ class Powell:
     
     def setUpperBound(self, ub):
         self.upperBound = ub
-        
-    def restrainedFun(self, P):
-        """
-        Modified base function that incorporates parameter boundries in the optimization process.
-        Any configuration outside of the specified domain automatically returns an arbitrary large number (10^10).
-        """
-        if (P < self.lowerBound).any() or (P > self.upperBound).any():
-            return 1e+10
-        else:
-            return self.baseFun(*P)
-
-    def initBracket(self, P, u):
-        """
-        Method used to find two initial starting points when attempting to bracket a minimum.
-        Additionaly, the upper and lower limits of the 1D line function are returned. 
-        """
-        # Arbitrary small number used to avoid dividing by zero and avoid errors if the vector is already located at the minimum.
-        eps = 1e-10
-
-        # Computes the values xi for which P + xi*u lies on the upper and lower boundries of the respective parameters.
-        upperCross = (self.upperBound - P) / (u+eps)
-        lowerCross = (self.lowerBound - P) / (u+eps)
-        allCross = np.append(upperCross, lowerCross)
-        
-        # Finds the positive and negative values for xi that minimize abs(xi), i.e. the points at which the first boundries are crossed.
-        xin = np.max(allCross[allCross <= 0.])
-        xip = np.min(allCross[allCross > 0.])
-        
-        lineBounds = (xin, xip)
-        lp = xip * np.linalg.norm(u)
-
-        return (-eps, lp/10), lineBounds
 
     def run(self):   
         """
@@ -75,7 +43,7 @@ class Powell:
         nD = len(P0)
 
         f0 = np.inf
-        fmin = self.restrainedFun(P0)
+        fmin = self._restrainedFun(P0)
         
         self.log = {'P': np.copy(P), 'fun': np.array([fmin])}
         
@@ -97,9 +65,9 @@ class Powell:
             
                 # Finds the minimum of the function along each direction in the basis.
                 for u in basis:
-                    lineFun = lambda x: self.restrainedFun(P + x*u) 
+                    lineFun = lambda x: self._restrainedFun(P + x*u) 
                     
-                    b0, lineBounds = self.initBracket(P, u)
+                    b0, lineBounds = self._initBracket(P, u)
                     bracket = findBracket(lineFun, b0, lineBounds)          
                     
                     xmin, fmin = Brent(lineFun, bracket)
@@ -114,9 +82,9 @@ class Powell:
                 basis[-1] = uN
 
                 # Minimizes along new direction and sets new P0.
-                lineFun = lambda x: self.restrainedFun(P + x*uN)
+                lineFun = lambda x: self._restrainedFun(P + x*uN)
                 
-                b0, lineBounds = self.initBracket(P, uN)
+                b0, lineBounds = self._initBracket(P, uN)
                 bracket = findBracket(lineFun, b0, lineBounds)
                 
                 xmin, fmin = Brent(lineFun, bracket)
@@ -130,6 +98,36 @@ class Powell:
             print(f'Powell finished after {i} iterations.')
             
         return P, fmin
-    
-    
+        
+    def _restrainedFun(self, P):
+        """
+        Modified base function that incorporates parameter boundries in the optimization process.
+        Any configuration outside of the specified domain automatically returns an arbitrary large number (10^10).
+        """
+        if (P < self.lowerBound).any() or (P > self.upperBound).any():
+            return 1e+10
+        else:
+            return self.baseFun(*P)
+
+    def _initBracket(self, P, u):
+        """
+        Method used to find two initial starting points when attempting to bracket a minimum.
+        Additionaly, the upper and lower limits of the 1D line function are returned. 
+        """
+        # Arbitrary small number used to avoid dividing by zero and avoid errors if the vector is already located at the minimum.
+        eps = 1e-10
+
+        # Computes the values xi for which P + xi*u lies on the upper and lower boundries of the respective parameters.
+        upperCross = (self.upperBound - P) / (u+eps)
+        lowerCross = (self.lowerBound - P) / (u+eps)
+        allCross = np.append(upperCross, lowerCross)
+        
+        # Finds the positive and negative values for xi that minimize abs(xi), i.e. the points at which the first boundries are crossed.
+        xin = np.max(allCross[allCross <= 0.])
+        xip = np.min(allCross[allCross > 0.])
+        
+        lineBounds = (xin, xip)
+        lp = xip * np.linalg.norm(u)
+
+        return (-eps, lp/10), lineBounds
 
