@@ -30,22 +30,22 @@ import DREAM.Settings.TransportSettings as Transport
 
 # TSTOP = 100
 TMAX = 1.5e-1
-NT = 100
+NT = 1000
 NR = 20
 
 # thermal quench settings
 EXP_DECAY = True
 TQ_TIME_DECAY = 1e-3
-TQ_TMAX = 3 * TQ_TIME_DECAY
+TQ_TMAX = 10 * TQ_TIME_DECAY
 TQ_INITIAL_dBB0 = 1.5e-3
 
 SETTINGS_DIR    = 'settings/'
 OUTPUT_DIR      = 'outputs/'
 
 @dataclass
-class Output(tol=1e-3):
+class Output():
     """
-    Output from DREAM.
+    Output from DREAM. (OBS. tolerance is not checked)
     """
     t: list                         # simulation time
     I_re: list                      # RE current
@@ -60,8 +60,8 @@ class Output(tol=1e-3):
         Checks that all list sizes are equal and such that I_tot ≈ I_re + I_ohm.
         Sets the current quench time, t20 and t80 (CQ reference points).
         """
-        assert all(len(I) == len(t) for x in I in [I_re, I_ohm])
-        assert max(np.abs(I_tot - I_re - I_ohm)) < tol
+        assert all(len(I) == len(self.t) for I in [self.I_re, self.I_ohm])
+        # assert max(np.abs(self.I_tot - self.I_re - self.I_ohm)) < 1e-3
         self.t20, self.t80, self.tCQ = utils.getCQTime(self.t, self.I_ohm)
 
     def getMaxTime(self):
@@ -74,7 +74,7 @@ class Output(tol=1e-3):
         return max(self.I_ohm)
 
     def visualizeCurrents(self, ax=None, show=False):
-        utils.visualizeCurrents(self.t, self.I_ohm, self.re, ax=ax, show=show)
+        utils.visualizeCurrents(self.t, self.I_ohm, self.I_re, ax=ax, show=show)
 
 
 
@@ -120,6 +120,10 @@ class DREAMSimulation(Simulation):
         self.outputFile         = f'{OUTPUT_DIR}{id}output.h5'
         self.settingsFile       = f'{SETTINGS_DIR}{id}settings.h5'
         self.doubleIterations   = False
+
+        # two DREAM output files to join post simulation
+        self.do1 = None
+        self.do2 = None
 
         #### Set the disruption sequences in order ####
         self.ds1 = DREAMSettings()
@@ -176,13 +180,13 @@ class DREAMSimulation(Simulation):
         self.ds1.eqsys.E_field.setType(EField.TYPE_SELFCONSISTENT)
         self.ds1.eqsys.E_field.setBoundaryCondition(EField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=0, R0=Tokamak.R0)
 
-        # Set initial current density
-        rj, j = Tokamak.getInitialCurrentDensity(self.input['j1'], self.input['j2'])
-        self.ds1.eqsys.j_ohm.setInitialProfile(j, radius=rj, Ip0=self.input['Ip0'])
-
         # Set initial temperature profile
         rT, T = Tokamak.getInitialTemperature(self.input['T0'], self.input['T1'])
         self.ds1.eqsys.T_cold.setInitialProfile(T, radius=rT)
+
+        # Set initial current density
+        rj, j = Tokamak.getInitialCurrentDensity(self.input['j1'], self.input['j2'])
+        self.ds1.eqsys.j_ohm.setInitialProfile(j, radius=rj, Ip0=self.input['Ip0'])
 
         # Background free electron density from ions
         nfree, rn0 = self.ds1.eqsys.n_i.getFreeElectronDensity()
@@ -194,7 +198,7 @@ class DREAMSimulation(Simulation):
 
     def run(self, doubleIterations=True):
         """
-        Run simulation
+        Runs the simulation and produce a single output.
         """
         assert self.output is None, \
             f'Output object already exists!'
@@ -204,18 +208,21 @@ class DREAMSimulation(Simulation):
         else:
             self._runPerturbTQ()
 
-        assert isinstance(self.output, DREAMOutput)
-        t = self.output.grid.t
-        I_ohm = self.output.eqsys.j_ohm.current()
-        I_re = self.output.eqsys.j_re.current()
-        I_tot = self.output.eqsys.j_tot.current()
+        assert isinstance(self.do1, DREAMOutput)
+        assert isinstance(self.do2, DREAMOutput)
 
-        return Output(t=t, I_ohm=I_ohm, I_re=I_re, I_tot=I_tot)
+        # Join the two outputs
+        t     = utils.concatenate(self.do1.grid.t, self.do2.grid.t)
+        I_re  = utils.concatenate(self.do1.eqsys.j_re.current(), self.do2.eqsys.j_re.current())
+        I_ohm = utils.concatenate(self.do1.eqsys.j_ohm.current(), self.do2.eqsys.j_ohm.current())
+        I_tot = utils.concatenate(self.do1.eqsys.j_tot.current(), self.do2.eqsys.j_tot.current())
 
+        self.output = Output(t=t, I_re=I_re, I_ohm=I_ohm, I_tot=I_tot)
+        return 0
 
     def _runExpDecayTQ(self):
         """
-        Run an exponential decay thermal quench (prescribed temperature evolution)
+        Run an exponential decay thermal quench (prescribed temperature evolution)the
         """
         # Set prescribed temperature evolution
         self.ds1.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
@@ -231,7 +238,7 @@ class DREAMSimulation(Simulation):
         out = self._getFileName('TQ_output', OUTPUT_DIR)
         self.ds1.output.setFilename(out)
         self.ds1.save(self._getFileName('TQ_settings', SETTINGS_DIR))
-        self._run(self.ds1, out)
+        self.do1 = self._run(self.ds1, out)
 
         ##### Post-TQ (self consistent temperature evolution) #####
 
@@ -249,7 +256,8 @@ class DREAMSimulation(Simulation):
         out = self._getFileName('pTQ_output', OUTPUT_DIR)
         self.ds2.output.setFilename(out)
         self.ds2.save(self._getFileName('pTQ_setting', SETTINGS_DIR))
-        self._run(self.ds2)
+        self.do2 = self._run(self.ds2)
+
 
     def _runPerturbTQ(self):
         raise NotImplementedError('TQ_PERTURB is not yet implemented...')
@@ -339,6 +347,7 @@ class DREAMSimulation(Simulation):
 
 
 
+
 def main():
 
     # Set to exponential decay in TQ if dreampyface doesn't exist
@@ -351,9 +360,9 @@ def main():
             print('ERROR: Python module dreampyface not found. Switchin to exp-decay...')
 
     s = DREAMSimulation()
-    do = s.run(doubleIterations=False)
-    utils.visualizeCurrents(do, show=True)
-    print(utils.getCQTime(do))
+    s.run(doubleIterations=False)
+    s.output.visualizeCurrents(show=True)
+
     return 0
 
 if __name__ == '__main__':
