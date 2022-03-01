@@ -19,28 +19,28 @@ except ModuleNotFoundError:
         sys.path.append(dp)
     import DREAM
 
-def visualizeCurrents(do, ax=None, show=False):
+from DREAM import DREAMOutput
+
+def visualizeCurrents(t, I_ohm, I_re, ax=None, show=False):
     """
     Plots the RE, Ohmic and total currents of given DREAM output file.
 
-    :param do:  DREAM output object.
+    :param t:       Simulation time.
+    :param I_re:    RE current.
+    :param I_ohm:   Ohmic current.
     :param ax:  matplotlib Axes object.
     """
     if ax is None:
         ax = plt.axes()
 
-    try:
-        t = do.grid.t[1:] * 1e3                   # [ms]
-        I_ohm = do.eqsys.j_ohm.current() * 1e-6   # [MA]
-        I_re = do.eqsys.j_re.current()[1:] * 1e-6
-        I_tot = do.eqsys.j_tot.current()[1:] * 1e-6
+    # change units
+    t *= 1e3        # s to ms
+    I_re *= 1e-6    # A to MA
+    I_ohm *= 1e-6
 
-        ax.plot(t, I_ohm, 'r', label='Ohm')
-        ax.plot(t, I_re,  'g', label='RE')
-        ax.plot(t, I_tot, 'b', label='total')
-
-    except AttributeError as err:
-        raise Exception('Output object does not include needed data.') from err
+    ax.plot(t, I_ohm, 'r', label='Ohm')
+    ax.plot(t, I_re,  'b', label='RE')
+    ax.plot(t, I_ohm + I_re, 'k', label='total')
 
     ax.set_xlabel('time (ms)')
     ax.set_ylabel('current (MA)')
@@ -50,16 +50,16 @@ def visualizeCurrents(do, ax=None, show=False):
 
     return ax
 
-def getCQTime(do, tol=.05):
+def getCQTime(I_ohm, tol=5e-2):
 	"""
 	Calculates current quench time through interpolation.
 
-    :param do:  DREAM output object.
-    :param tol: tolerance value.
+    :param I_ohm:   Ohmic current.
+    :param tol:     Tolerance value.
 	"""
-    # I_ohm = do.eqsys.j_ohm.current()
-    # i80 = np.argmin(np.abs(I_ohm/I_ohm[0] - .8))
-	# i20 = np.argmin(np.abs(I_ohm/I_ohm[0] - .2))
+    I_ohm = do.eqsys.j_ohm.current()
+    i80 = np.argmin(np.abs(I_ohm/I_ohm[0] - .8))
+	i20 = np.argmin(np.abs(I_ohm/I_ohm[0] - .2))
 
 	if np.abs(I_ohm[i80]/I_ohm[1] - .8) > tol:
 		warnings.warn(f'\nData point at 80% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.')
@@ -67,8 +67,8 @@ def getCQTime(do, tol=.05):
 		warnings.warn(f'\nData point at 20% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.')
 
     # t = do.grid.t[1:]
-	t_80 = fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .8, x0=t[i_80])
-	t_20 = fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .2, x0=t[i_20])
+	t_80 = np.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .8, x0=t[i_80])
+	t_20 = np.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .2, x0=t[i_20])
 
 	return (t_20 - t_80) / .6
 
@@ -91,7 +91,7 @@ def getQuadraticMagneticPerturbation(ds, dBB0, dBB1):
 
 def getDiffusionOperator(dBB, q=1, R0=1., svensson=True):
 	"""
-	Returns the Rechester-Rosenbluth diffusion operator for REs travelling at the
+	Returnsout the Rechester-Rosenbluth diffusion operator for REs travelling at the
     speed of light.
 
 	:param dBB:	        Scalar or 1D array containing the magnetic pertubation

@@ -3,7 +3,7 @@
 import sys
 import pathlib
 import numpy as np
-
+from dataclasses import dataclass, field
 
 import utils
 import ITER as Tokamak
@@ -18,7 +18,7 @@ except ModuleNotFoundError:
         # sys.path.append(f'{dp}/build/dreampyface/cxx/')
     import DREAM
 
-from DREAM import DREAMSettings, DREAMException, runiface
+from DREAM import DREAMSettings, DREAMOutput, DREAMException, runiface
 import DREAM.Settings.CollisionHandler as Collisions
 import DREAM.Settings.Equations.ColdElectronTemperature as Temperature
 import DREAM.Settings.Equations.ElectricField as EField
@@ -41,6 +41,42 @@ TQ_INITIAL_dBB0 = 1.5e-3
 
 SETTINGS_DIR    = 'settings/'
 OUTPUT_DIR      = 'outputs/'
+
+@dataclass
+class Output(tol=1e-3):
+    """
+    Output from DREAM.
+    """
+    t: list                         # simulation time
+    I_re: list                      # RE current
+    I_ohm: list                     # Ohmic current
+    I_tot: list                     # total current
+    tCQ: float = field(init=False)  # current quench time
+    t20: float = field(init=False)  # I_ohm(t20) / I_ohm(0) = 20%
+    t80: float = field(init=False)  # I_ohm(t80) / I_ohm(0) = 80%
+
+    def __post_init__(self):
+        """
+        Checks that all list sizes are equal and such that I_tot ≈ I_re + I_ohm.
+        Sets the current quench time, t20 and t80 (CQ reference points).
+        """
+        assert all(len(I) == len(t) for x in I in [I_re, I_ohm])
+        assert max(np.abs(I_tot - I_re - I_ohm)) < tol
+        self.t20, self.t80, self.tCQ = utils.getCQTime(self.t, self.I_ohm)
+
+    def getMaxTime(self):
+        return max(self.t)
+
+    def getMaxRECurrent(self):
+        return max(self.I_re)
+
+    def getMaxOhmCurrent(self):
+        return max(self.I_ohm)
+
+    def visualizeCurrents(self, ax=None, show=False):
+        utils.visualizeCurrents(self.t, self.I_ohm, self.re, ax=ax, show=show)
+
+
 
 class DREAMSimulation(Simulation):
     """
@@ -83,7 +119,7 @@ class DREAMSimulation(Simulation):
 
         self.outputFile         = f'{OUTPUT_DIR}{id}output.h5'
         self.settingsFile       = f'{SETTINGS_DIR}{id}settings.h5'
-        self.doubleIterations   = True
+        self.doubleIterations   = False
 
         #### Set the disruption sequences in order ####
         self.ds1 = DREAMSettings()
@@ -164,56 +200,69 @@ class DREAMSimulation(Simulation):
             f'Output object already exists!'
 
         if EXP_DECAY:
+            self._runExpDecayTQ()
+        else:
+            self._runPerturbTQ()
+
+        assert isinstance(self.output, DREAMOutput)
+        t = self.output.grid.t
+        I_ohm = self.output.eqsys.j_ohm.current()
+        I_re = self.output.eqsys.j_re.current()
+        I_tot = self.output.eqsys.j_tot.current()
+
+        return Output(t=t, I_ohm=I_ohm, I_re=I_re, I_tot=I_tot)
 
 
-            ##### TQ (prescribed exponential decay in temperature) #####
+    def _runExpDecayTQ(self):
+        """
+        Run an exponential decay thermal quench (prescribed temperature evolution)
+        """
+        # Set prescribed temperature evolution
+        self.ds1.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
 
-            # Set prescribed temperature evolution
-            self.ds1.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
+        # Set exponential-decay temperature
+        t, r, T = Tokamak.getTemperatureEvolution(self.input['T0'], self.input['T1'], tmax=TMAX, nt=NT)
+        self.ds1.eqsys.T_cold.setPrescribedData(T, radius=r, times=t)
 
-            # Set exponential-decay temperature
-            t, r, T = Tokamak.getTemperatureEvolution(self.input['T0'], self.input['T1'], tmax=TMAX, nt=NT)
-            self.ds1.eqsys.T_cold.setPrescribedData(T, radius=r, times=t)
+        # Set TQ time stepper settings
+        self.ds1.timestep.setTmax(TQ_TMAX)
 
-            # Set TQ time stepper settings
-            self.ds1.timestep.setTmax(TQ_TMAX)
+        # run TQ part of simulation
+        out = self._getFileName('TQ_output', OUTPUT_DIR)
+        self.ds1.output.setFilename(out)
+        self.ds1.save(self._getFileName('TQ_settings', SETTINGS_DIR))
+        self._run(self.ds1, out)
 
-            # run TQ part of simulation
-            out = self._getFileName('TQ_output', OUTPUT_DIR)
-            self.ds1.output.setFilename(out)
-            self.ds1.save(self._getFileName('TQ_settings', SETTINGS_DIR))
-            self._run()
+        ##### Post-TQ (self consistent temperature evolution) #####
 
-            ##### Post-TQ (self consistent temperature evolution) #####
+        self.ds2 = DREAMSettings(self.ds1)
+        self.ds2.fromOutput(out)
 
-            self.ds2 = DREAMSettings(self.ds1)
-            self.ds2.fromOutput(out)
+        # Change to self consistent temperature and set external magnetic pertubation
+        # r, dBB = utils.getQuadraticMagneticPerturbation(self.ds2, self.input['dBB0'], self.input['dBB1'])
+        # self._setSvenssonTransport(self.ds2, dBB, r)
 
-            # Change to self consistent temperature and set external magnetic pertubation
-            r, dBB = utils.getQuadraticMagneticPerturbation(self.ds2, self.input['dBB0'], self.input['dBB1'])
-            self._setSvenssonTransport(self.ds2, dBB, r)
+        # Set post-TQ time stepper settings
+        self.ds2.timestep.setTmax(TMAX - TQ_TMAX)
 
-            # Set post-TQ time stepper settings
-            self.ds2.timestep.setTmax(TMAX - TQ_TMAX)
+        # run post-TQ part of simulation
+        out = self._getFileName('pTQ_output', OUTPUT_DIR)
+        self.ds2.output.setFilename(out)
+        self.ds2.save(self._getFileName('pTQ_setting', SETTINGS_DIR))
+        self._run(self.ds2)
 
-            # run post-TQ part of simulation
-            out = self._getFileName('pTQ_output', OUTPUT_DIR)
-            self.ds2.output.setFilename(out)
-            self.ds2.save(self._getFileName('pTQ_setting', SETTINGS_DIR))
-            self._run()
+    def _runPerturbTQ(self):
+        raise NotImplementedError('TQ_PERTURB is not yet implemented...')
 
-        else: # (Not working due to problems with DREAM branch origin/theater)
-            raise NotImplementedError('TQ_PERTURB is not yet implemented...')
+        # Set edge vanishing TQ magnetic pertubation
+        r, dBB = utils.getQuadraticMagneticPerturbation(self.ds1, TQ_INITIAL_dBB0, -1/Tokamak.a**2)
+        self._setSvenssonTransport(self.ds1, dBB, r)
 
-            # Set edge vanishing TQ magnetic pertubation
-            r, dBB = utils.getQuadraticMagneticPerturbation(self.ds1, TQ_INITIAL_dBB0, -1/Tokamak.a**2)
-            self._setSvenssonTransport(self.ds1, dBB, r)
+        # ds1.timestep.setTerminationFunction(lambda s: terminate(s, TSTOP))
+        # self.run(dreampyface=True)
 
-            # ds1.timestep.setTerminationFunction(lambda s: terminate(s, TSTOP))
-            # self.run(dreampyface=True)
-
-            self.ds = DREAMSettings(self.ds1)
-            #...
+        self.ds = DREAMSettings(self.ds1)
+        #...
 
 
     def _setSvenssonTransport(self, ds, dBB, radius):
@@ -235,16 +284,16 @@ class DREAMSimulation(Simulation):
         Drr = np.tile(Drr, (NT,1,1,1))
         t = np.linspace(0, TMAX, NT)
 
-        # ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
-        # ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
-        #
-        # # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
-        # ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=radius, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
-        # ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+        ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
+        ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
+
+        # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
+        ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=radius, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
+        ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
 
 
 
-    def _run(self, doubleIterations=None, dreampyface=False, ntmax=1e7):
+    def _run(self, ds, out='out.h5', doubleIterations=None, dreampyface=False, ntmax=1e7):
         """
         Run simulation and rerun simulation with a doubled number of timesteps
         if it crashes.
@@ -254,21 +303,21 @@ class DREAMSimulation(Simulation):
             self.doubleIterations = doubleIterations
         try:
             if dreampyface:
-                s = dreampyface.setup_simulation(self.ds1)
+                s = dreampyface.setup_simulation(ds)
                 do = s.run()
             else:
-                do = runiface(self.ds1, quiet=not self.verbose)
+                do = runiface(ds, out, quiet=not self.verbose)
         except DREAMException as err:
             if self.doubleIterations:
-                nt = self.ds1.timestep.nt
-                if nt >= ntmax:
+                dt = ds.timestep.dt
+                if dt >= ntmax / NT:
                     print(err)
                     print('ERROR : Skipping this simulation!')
                 else:
                     print(err)
-                    print(f'WARNING : Number of iterations is doubled from {nt} to {2*nt}!')
-                    self.ds1.timestep.setNt(2*nt)
-                    run(doubleIterations=True, dreampyface=dreampyface)
+                    print(f'WARNING : Timestep is reduced from {dt} to {.5*dt}!')
+                    ds.timestep.setDt(2*dt)
+                    self._run(ds, doubleIterations=True, dreampyface=dreampyface)
             else:
                 raise err
         return do
