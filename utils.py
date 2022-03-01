@@ -6,8 +6,7 @@ import sys, os
 import numpy as np
 import scipy as scp
 import matplotlib.pyplot as plt
-# import wanings123
-
+import warnings
 
 DREAMPATHS = ('/home/pethalld/DREAM/py', '/home/peterhalldestam/DREAM/py', '/home/hannber/DREAM/py')
 
@@ -20,6 +19,15 @@ except ModuleNotFoundError:
     import DREAM
 
 from DREAM import DREAMOutput
+
+def concatenate(self, *arr):
+    """
+    Returns the concatenation of all entered arrays, with the initial
+    timestep removed.
+
+    :param arr1, [arr2,...]: Any number of 1d arrays to concatenate.
+    """
+    return np.array(sum(arr[1:], []))
 
 def visualizeCurrents(t, I_ohm, I_re, ax=None, show=False):
     """
@@ -50,14 +58,16 @@ def visualizeCurrents(t, I_ohm, I_re, ax=None, show=False):
 
     return ax
 
-def getCQTime(I_ohm, tol=5e-2):
+def getCQTime(t, I_ohm, tol=5e-2):
 	"""
 	Calculates current quench time through interpolation.
 
+    :param t:       Simulation time.
     :param I_ohm:   Ohmic current.
     :param tol:     Tolerance value.
 	"""
-    I_ohm = do.eqsys.j_ohm.current()
+    assert len(t) == len(I_ohm)
+
     i80 = np.argmin(np.abs(I_ohm/I_ohm[0] - .8))
 	i20 = np.argmin(np.abs(I_ohm/I_ohm[0] - .2))
 
@@ -66,11 +76,10 @@ def getCQTime(I_ohm, tol=5e-2):
 	elif np.abs(I_ohm[i20]/I_ohm[1] - .2) > tol:
 		warnings.warn(f'\nData point at 20% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.')
 
-    # t = do.grid.t[1:]
 	t_80 = np.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .8, x0=t[i_80])
 	t_20 = np.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .2, x0=t[i_20])
 
-	return (t_20 - t_80) / .6
+	return t_20, t_80, (t_20 - t_80) / .6
 
 
 def getQuadraticMagneticPerturbation(ds, dBB0, dBB1):
@@ -115,7 +124,6 @@ def getDiffusionOperator(dBB, q=1, R0=1., svensson=True):
 		dBB, xi, p = np.meshgrid(dBB, xi, p, indexing='ij')
 		D = np.pi * R0 * q * dBB**2 * np.abs(xi) * p * c/(np.sqrt(1 + p**2))
 		return D, xi, p
-
 	else:
 		D = np.pi * R0 * q * c * dBB**2
 		return D
