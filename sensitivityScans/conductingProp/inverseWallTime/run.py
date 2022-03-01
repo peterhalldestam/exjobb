@@ -86,12 +86,12 @@ do = runiface(ds_init, 'init/output_current.h5', quiet=False) # Using the same t
 
 """ Main simulations: apply self-consistent temperature evolution """
 # Change to main time configuration
-t_max = 60e-3
-nt = 15e3
+t_max = 150e-3
+nt = 25e3
 t = np.linspace(0,t_max,nt)
 ds_init.timestep.setTmax(t_max)
 ds_init.timestep.setNt(nt)
-ds_init.timestep.setNumberOfSaveSteps(400)
+ds_init.timestep.setNumberOfSaveSteps(200)
 
 # Enable avalanche, hottail and Dreicer generation
 ds_init.eqsys.n_re.setAvalanche(Runaways.AVALANCHE_MODE_FLUID)
@@ -100,10 +100,6 @@ ds_init.eqsys.n_re.setDreicer(Runaways.DREICER_RATE_NEURAL_NETWORK)
 ds_init.eqsys.f_hot.setInitialProfiles(rn0=rn0, n0=ne_profile, rT0=rT0, T0=T_init_profile)
 ds_init.eqsys.n_re.setHottail(Runaways.HOTTAIL_MODE_ANALYTIC_ALT_PC)
 
-# Enable self consistent evolution of E-field
-ds_init.eqsys.E_field.setType(ElectricField.TYPE_SELFCONSISTENT)
-ds_init.eqsys.E_field.setBoundaryCondition(ElectricField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=0, R0=R0)
-
 # Enable magnetic pertubations that will allow for radial transport
 ds_init.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
 ds_init.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
@@ -111,52 +107,35 @@ ds_init.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATI
 # Run simulation for different uniform perturbations
 #dBB_list = np.linspace(1e-3, 5e-3, 5)
 r_dBB = np.array([0, 0.1])
-dBB = 1e-3 * np.ones(len(r_dBB))
+dBB = 2e-3 * np.ones(len(r_dBB))
 
 Drr, xi_grid, p_grid = utils.getRRCoefficient(dBB, R0=Tokamak.R0)
 Drr = np.tile(Drr, (int(nt),1,1,1))
 
-pstar_list = [0.5]#[0.3, 0.5, 0.7]
-#for i, dBB in enumerate(dBB_list):
-for pstar in pstar_list:
+ds_init.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB[0])
+ds_init.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
+
+"""
+pstar = 0.5
+ds_init.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
+ds_init.eqsys.n_re.transport.setSvenssonPstar(pstar)
+# Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
+ds_init.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r_dBB, p=p_grid, xi=xi_grid, interp1d=Transport.INTERP1D_NEAREST)
+ds_init.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+"""
+
+inv_wall_list = [0, 0.1, 0.5]
+for i, inv_wall in enumerate(inv_wall_list):
 
 	ds_main = DREAMSettings(ds_init)
 	ds_main.other.include('fluid')
 	ds_main.other.include('scalar')
 	
-	ds_main.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB[0])
-	ds_main.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
+	# Enable self consistent evolution of E-field
+	ds_main.eqsys.E_field.setType(ElectricField.TYPE_SELFCONSISTENT)
+	ds_main.eqsys.E_field.setBoundaryCondition(ElectricField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=inv_wall, R0=Tokamak.R0)
+
 	
-	ds_main.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
-	ds_main.eqsys.n_re.transport.setSvenssonPstar(pstar)
-	# Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
-	ds_main.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r_dBB, p=p_grid, xi=xi_grid, interp1d=Transport.INTERP1D_NEAREST)
-	ds_main.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
-	
-	#do = runiface(ds_main, f'output/output{i}.h5', quiet=False)
-	do = runiface(ds_main, f'output/output_pstar_{pstar}.h5', quiet=False)
-
-ds_main = DREAMSettings(ds_init)
-ds_main.other.include('fluid')
-ds_main.other.include('scalar')
-
-ds_main.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB[0])
-ds_main.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-
-Drr = utils.getRRCoefficient(dBB, R0=Tokamak.R0, Svensson=False)
-Drr = np.tile(Drr, (int(nt),1))
-ds_main.eqsys.n_re.transport.prescribeDiffusion(drr=Drr, r=r_dBB, t=t)
-ds_main.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
-
-do = runiface(ds_main, 'output/output_regular.h5', quiet=False)
-
-ds_main = DREAMSettings(ds_init)
-ds_main.other.include('fluid')
-ds_main.other.include('scalar')
-
-ds_main.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB[0])
-ds_main.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-
-do = runiface(ds_main, 'output/output_none.h5', quiet=False)
+	do = runiface(ds_main, f'output/output{i}.h5', quiet=False)
 
 

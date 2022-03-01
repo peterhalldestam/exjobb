@@ -41,7 +41,7 @@ def analyze(do, ax=None):
 
 	if ax:
 		#ax.plot(t*1e3, I_ohm[:]*1e-6, label = '$I_{\Omega}$')
-		ax.semilogy(t*1e3, I_ohm[:]*1e-6, label = '$I_{\Omega}$')
+		ax.plot(t*1e3, I_ohm[:]*1e-6, label = '$I_{\Omega}$')
 		ax.plot(t*1e3, I_re[:]*1e-6, label = '$I_{RE}$')
 		ax.plot(t*1e3, I_tot[:]*1e-6, label = '$I_{tot}$')
 
@@ -51,14 +51,12 @@ def analyze(do, ax=None):
 if __name__ == '__main__':
 
 	#outputs = sorted(glob.glob('output/*'))
-	outputs = sorted(glob.glob('output/output_p*'))
-	outputs.append('output/output_regular.h5')
-	outputs.append('output/output_none.h5')
+	outputs = sorted(glob.glob('output/*'))
 
 	I_list = np.array([])
 	t_CQ_list = np.array([])
 	Q_trans_list = np.array([])
-	dBB_list = np.array([])
+	inv_wall_list = np.array([])
 	do_list = []
 
 	for output in outputs:
@@ -66,9 +64,9 @@ if __name__ == '__main__':
 		do = DREAMOutput(output)
 
 		I, t_CQ, Q_trans = analyze(do)
-		dBB = do.settings.eqsys.T_cold.transport.dBB[0]
+		inv_wall_time = do.settings.eqsys.E_field.inverse_wall_time
 		
-		dBB_list = np.append(dBB_list, dBB)
+		inv_wall_list = np.append(inv_wall_list, inv_wall_time)
 		I_list = np.append(I_list, I)
 		Q_trans_list = np.append(Q_trans_list, Q_trans)
 		t_CQ_list = np.append(t_CQ_list, t_CQ)
@@ -80,14 +78,11 @@ if __name__ == '__main__':
 		do = do_list[i]
 		analyze(do, ax[i])
 		#ax[i].set_title(f'dBB = {dBB_list[i]}')
-		ax[i].set_title(f'pstar = {outputs[i][20:-3]}')
+		ax[i].set_title(f'inverse wall time = {inv_wall_list[i]}')
 		#ax[i].text(50, 14, '$\hat{I}_{RE}$'f'$={I_list[i]*1e-6:.3}$ MA', fontsize = 12)
 		#ax[i].text(50, 13, '$t_{CQ}$'f'$={t_CQ_list[i]*1e3:.4}$ ms', fontsize = 12)
 		ax[i].text(10, 1e-14, '$Q_{trans}$'f'$={Q_trans_list[i]*1e-6:.4}$ MJ', fontsize = 12)
 		ax[i].set_xlabel('time [ms]')
-		
-	ax[-2].set_title('prescribed diffusion')
-	ax[-1].set_title('no runaway diffusion')		
 		
 		
 	ax[0].set_ylabel('current [MA]')

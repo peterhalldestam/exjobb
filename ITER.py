@@ -114,5 +114,5 @@ def getInitialCurrentDensity(j1, j2):
 
     r = np.linspace(0, a, NR)
     j = (1 - j1 * (r/a)**2) ** j2
-
+    
     return r, j
