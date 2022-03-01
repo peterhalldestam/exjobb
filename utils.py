@@ -51,26 +51,26 @@ def visualizeCurrents(t, I_ohm, I_re, ax=None, show=False):
     return ax
 
 def getCQTime(I_ohm, tol=5e-2):
-	"""
-	Calculates current quench time through interpolation.
+    """
+    Calculates current quench time through interpolation.
 
     :param I_ohm:   Ohmic current.
     :param tol:     Tolerance value.
-	"""
+    """
     I_ohm = do.eqsys.j_ohm.current()
     i80 = np.argmin(np.abs(I_ohm/I_ohm[0] - .8))
-	i20 = np.argmin(np.abs(I_ohm/I_ohm[0] - .2))
+    i20 = np.argmin(np.abs(I_ohm/I_ohm[0] - .2))
 
-	if np.abs(I_ohm[i80]/I_ohm[1] - .8) > tol:
-		warnings.warn(f'\nData point at 80% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.')
-	elif np.abs(I_ohm[i20]/I_ohm[1] - .2) > tol:
-		warnings.warn(f'\nData point at 20% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.')
+    if np.abs(I_ohm[i80]/I_ohm[1] - .8) > tol:
+	    warnings.warn(f'\nData point at 80% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.')
+    elif np.abs(I_ohm[i20]/I_ohm[1] - .2) > tol:
+	    warnings.warn(f'\nData point at 20% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.')
 
     # t = do.grid.t[1:]
-	t_80 = np.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .8, x0=t[i_80])
-	t_20 = np.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .2, x0=t[i_20])
+    t_80 = scp.optimize.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .8, x0=t[i_80])
+    t_20 = scp.optimize.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .2, x0=t[i_20])
 
-	return (t_20 - t_80) / .6
+    return (t_20 - t_80) / .6
 
 
 def getQuadraticMagneticPerturbation(ds, dBB0, dBB1):
