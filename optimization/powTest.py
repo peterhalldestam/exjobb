@@ -18,7 +18,10 @@ upperBound = (5., 5.)
 
 
 powOpt = Powell(fun, P0, lb=lowerBound, ub=upperBound, verbose=True)
-Ptrack = powOpt.run()
+powOpt.run()
+
+log = powOpt.getLog()
+Ptrack = log['P']
 
 numbers = np.arange(1, len(Ptrack)+1)
 

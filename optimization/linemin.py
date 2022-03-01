@@ -1,16 +1,16 @@
 import numpy as np
 import scipy.constants as const
 
-def findBracket(fun, p0, bounds, gamma=2):
+def findBracket(fun, b0, bounds, gamma=2):
     """
     Simple algorithm used to initially bracket a local minimum by expontentially increasing step sizes.
     
     :param fun:     function handle to a 1D function where the minimum is going to be bracketed.
-    :param p0:      tuple or list object containing two of the points that are going to be included in the bracket.
+    :param b0:      tuple or list object containing two of the points that are going to be included in the bracket.
     :param gamma:   constant factor by which the step size is increased.
     """
 
-    ax = p0[0]; bx = p0[1]
+    ax = b0[0]; bx = b0[1]
     fa = fun(ax); fb = fun(bx)
     lx = bounds[0]; ux = bounds[1]
     
