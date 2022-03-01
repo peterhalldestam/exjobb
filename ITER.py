@@ -25,9 +25,15 @@ R0 = 6.2     # major radius (m)
 Ip = 15e6    # Target plasma current (A)
 j0 = 1.69e6  # current density (A/m^2) (yielding a plasma current Ip=15 MA in a circular plasma)
 
+# ???? SET THESE TO BE ITER-LIKE!!!
+j1 = 1e-4
+J2 = .5
+
 # Simulation parameters
 ne0 = 1e20  # electron density (m^-3)
 t0  = 1e-3  # xponential decay time (s)
+T_initial = 2e4
+T_final = 1e1
 
 # Radial grid resolution
 NR = 101
@@ -76,7 +82,7 @@ def getInitialTemperature(T0, T1):
     return r, T
 
 
-def getFinalTemperature(T0=50):
+def getFinalTemperature(T0=T_final):
     """
     Returns the final temperature profile.
     """
@@ -88,7 +94,7 @@ def getFinalTemperature(T0=50):
     return r, T
 
 
-def getTemperatureEvolution(T0, T1, tau0=t0, T_final=50, tmax=1.5e-1, nt=100):
+def getTemperatureEvolution(T0, T1, tau0=t0, T_final=T_final, tmax=1.5e-1, nt=100):
     """
     Returns the spatiotemporal temperature profile
     """
@@ -114,5 +120,5 @@ def getInitialCurrentDensity(j1, j2):
 
     r = np.linspace(0, a, NR)
     j = (1 - j1 * (r/a)**2) ** j2
-    
+
     return r, j
