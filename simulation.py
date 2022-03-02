@@ -47,7 +47,7 @@ class Simulation:
             self.input = self.Input(**inputs)
         except TypeError as err:
             print(f'Provided inputs must exist in {Input().__dataclass_fields__.keys()}')
-            raise err()
+            raise err
 
         self.output = None
         self.objFun = None

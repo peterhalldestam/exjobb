@@ -36,7 +36,7 @@ NR = 20
 # thermal quench settings
 EXP_DECAY = True
 TQ_TIME_DECAY = 1e-3
-TQ_TMAX = 10 * TQ_TIME_DECAY
+TQ_TMAX = 1e-6
 TQ_INITIAL_dBB0 = 1.5e-3
 
 SETTINGS_DIR    = 'settings/'
@@ -71,8 +71,8 @@ class DREAMSimulation(Simulation):
         #...
 
         # Inital current density profile
-        j1:     Parameter = Parameter(min=0., max=1.,                   val=0.)
-        j2:     Parameter = Parameter(min=0., max=4,                    val=0.)
+        j1:     Parameter = Parameter(min=0., max=1.,                   val=1.)
+        j2:     Parameter = Parameter(min=0., max=4,                    val=.41)
         Ip0:    Parameter = Parameter(min=0., max=2e7,                  val=Tokamak.Ip)
 
         # Initial temperature profile
@@ -80,7 +80,7 @@ class DREAMSimulation(Simulation):
         T2:     Parameter = Parameter(min=0., max=1.,                   val=0.)
 
         # Post TQ magnetic perturbation profile
-        dBB1:   Parameter = Parameter(min=0., max=1e-3,                 val=0.)
+        dBB1:   Parameter = Parameter(min=0., max=1e-3,                 val=1e-4)
         dBB2:   Parameter = Parameter(min=0., max=1e2,                  val=0.)
 
 
@@ -171,9 +171,9 @@ class DREAMSimulation(Simulation):
 
         # Add injected ions
         if self.input.nNe.val > 0:
-            raise NotImplementedError('Impurities is not yet implemented...')
+            raise NotImplementedError('injected ions are not yet implemented...')
         if self.input.nD2.val > 0:
-            raise NotImplementedError('Impurities is not yet implemented...')
+            raise NotImplementedError('injected ions are not yet implemented...')
 
         # Set fluid RE generation
         self.ds1.eqsys.n_re.setDreicer(RE.DREICER_RATE_NEURAL_NETWORK)
@@ -207,8 +207,7 @@ class DREAMSimulation(Simulation):
         """
         Runs the simulation and produce a single output.
         """
-        assert self.output is None, \
-            f'Output object already exists!'
+        assert self.output is None, 'Output object already exists!'
 
         if EXP_DECAY:
             self._runExpDecayTQ()
@@ -219,10 +218,10 @@ class DREAMSimulation(Simulation):
         assert isinstance(self.do2, DREAMOutput)
 
         # Join the two outputs
-        t     = utils.concatenate(self.do1.grid.t, self.do2.grid.t)
-        I_re  = utils.concatenate(self.do1.eqsys.j_re.current(), self.do2.eqsys.j_re.current())
-        I_ohm = utils.concatenate(self.do1.eqsys.j_ohm.current(), self.do2.eqsys.j_ohm.current())
-        I_tot = utils.concatenate(self.do1.eqsys.j_tot.current(), self.do2.eqsys.j_tot.current())
+        t     = np.append(self.do1.grid.t, self.do1.grid.t[-1] + self.do2.grid.t[1:])
+        I_re  = np.append(self.do1.eqsys.j_re.current(), self.do2.eqsys.j_re.current()[1:])
+        I_ohm = np.append(self.do1.eqsys.j_ohm.current(), self.do2.eqsys.j_ohm.current()[1:])
+        I_tot = np.append(self.do1.eqsys.j_tot.current(), self.do2.eqsys.j_tot.current()[1:])
 
         self.output = self.Output(t=t, I_re=I_re, I_ohm=I_ohm, I_tot=I_tot)
         return 0
@@ -253,8 +252,8 @@ class DREAMSimulation(Simulation):
         self.ds2.fromOutput(out)
 
         # Change to self consistent temperature and set external magnetic pertubation
-        # r, dBB = utils.getQuadraticMagneticPerturbation(self.ds2, self.input['dBB0'], self.input['dBB1'])
-        # self._setSvenssonTransport(self.ds2, dBB, r)
+        r, dBB = utils.getQuadraticMagneticPerturbation(self.ds2, self.input.dBB1.val, self.input.dBB2.val)
+        self._setSvenssonTransport(self.ds2, dBB, r)
 
         # Set post-TQ time stepper settings
         self.ds2.timestep.setTmax(TMAX - TQ_TMAX)
@@ -280,30 +279,32 @@ class DREAMSimulation(Simulation):
         #...
 
 
-    def _setSvenssonTransport(self, ds, dBB, radius):
+    def _setSvenssonTransport(self, ds, dBB, r):
         """
         Configures the Svensson transport settings.
         """
-        assert dBB.shape == radius.shape
+        assert dBB.shape == r.shape
 
         # Enable self consistent temperature evolution
         ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
         ds.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
 
         # Enable magnetic pertubations that will allow for radial transport
+        t = np.linspace(0, TMAX, NT)
+
         ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-        ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB, r=radius)
+        ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=np.tile(dBB, (NT, 1)), r=r, t=t)
 
         # Rechester-Rosenbluth diffusion operator
         Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
         Drr = np.tile(Drr, (NT,1,1,1))
-        t = np.linspace(0, TMAX, NT)
 
         ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
         ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
 
         # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
-        ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=radius, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
+        print(Drr.shape)
+        ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
         ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
 
 
@@ -368,7 +369,9 @@ def main():
 
     s = DREAMSimulation()
     s.run(doubleIterations=False)
+
     s.output.visualizeCurrents(show=True)
+
 
     return 0
 

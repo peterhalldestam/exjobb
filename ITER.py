@@ -33,7 +33,7 @@ J2 = .5
 ne0 = 1e20  # electron density (m^-3)
 t0  = 1e-3  # xponential decay time (s)
 T_initial = 2e4
-T_final = 1e1
+T_final = 5e1
 
 # Radial grid resolution
 NR = 101

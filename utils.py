@@ -20,7 +20,7 @@ except ModuleNotFoundError:
 
 from DREAM import DREAMOutput
 
-def concatenate(self, *arr):
+def concatenate(arr1, arr2):
     """
     Returns the concatenation of all entered arrays, with the initial
     timestep removed.
@@ -28,9 +28,8 @@ def concatenate(self, *arr):
     :param arr1, [arr2,...]: Any number of 1d arrays to concatenate.
     """
     out = []
-    for a in arr:
-        out.append(a[1:])
-
+    out.append(arr1[:])
+    out.append(arr2[1:])
     out = np.squeeze(np.array(out))
     return out
 
