@@ -42,40 +42,6 @@ TQ_INITIAL_dBB0 = 1.5e-3
 SETTINGS_DIR    = 'settings/'
 OUTPUT_DIR      = 'outputs/'
 
-@dataclass
-class Output():
-    """
-    Output from DREAM. (OBS. tolerance is not checked)
-    """
-    t: list                         # simulation time
-    I_re: list                      # RE current
-    I_ohm: list                     # Ohmic current
-    I_tot: list                     # total current
-    tCQ: float = field(init=False)  # current quench time
-    t20: float = field(init=False)  # I_ohm(t20) / I_ohm(0) = 20%
-    t80: float = field(init=False)  # I_ohm(t80) / I_ohm(0) = 80%
-
-    def __post_init__(self):
-        """
-        Checks that all list sizes are equal and such that I_tot ≈ I_re + I_ohm.
-        Sets the current quench time, t20 and t80 (CQ reference points).
-        """
-        assert all(len(I) == len(self.t) for I in [self.I_re, self.I_ohm])
-        # assert max(np.abs(self.I_tot - self.I_re - self.I_ohm)) < 1e-3
-        self.t20, self.t80, self.tCQ = utils.getCQTime(self.t, self.I_ohm)
-
-    def getMaxTime(self):
-        return max(self.t)
-
-    def getMaxRECurrent(self):
-        return max(self.I_re)
-
-    def getMaxOhmCurrent(self):
-        return max(self.I_ohm)
-
-    def visualizeCurrents(self, ax=None, show=False):
-        utils.visualizeCurrents(self.t, self.I_ohm, self.I_re, ax=ax, show=show)
-
 
 
 class DREAMSimulation(Simulation):
@@ -83,35 +49,74 @@ class DREAMSimulation(Simulation):
     Description...
     """
 
-    # baseline input parameters
-    baseline = {
+    ############## CONTAINER CLASSES ##############
+
+    @dataclass
+    class Input:
+        """
+        Input parameters for the DREAM simulation. Defined below is the baseline.
+        """
         # Fuel densities
-        'nH':   0.,
-        'nD':   Tokamak.ne0,
-        'nT':   0.,
-        'nHe':  0.,
+        nH:     float = 0.
+        nD:     float = Tokamak.ne0
+        nT:     float = 0.
+        nHe:    float = 0.
 
-        # Impurity densities
-        'nBe':  0.,
-        'nC':   0.,
-        'nFe':  0.,
-        'nW':   0.,
+        # Impurity densities (incomplete?)
+        nBe:    float = 0.
+        nC:     float = 0.
+        nFe:    float = 0.
+        nW:     float = 0.
 
-        # Initial current density j(r) ~ (1-j1*(r/a)^2)^j2, integral(j) = Ip0
-        'j1':   0.,
-        'j2':   0.,
-        'Ip0':  15e6,
+        # Initial current density
+        j1:     float = Tokamak.j1
+        j2:     float = Tokamak.j2
+        Ip0:    float = Tokamak.Ip0
 
-        # Initial temperature profile T(r) = T0*(1-T1*(r/a)^2)
-        'T0':   2e4,
-        'T1':   .99,
+        # Initial temperature profile
+        T0:     float = Tokamak.T_initial
+        T1:     float = .99
 
-        # Magnetic pertubation (post TQ) dBB(r) ~ 1+dBB1*r^2, integral(dBB) = dBB0
-        'dBB0': 0.,
-        'dBB1': 0.
-    }
+        # Magnetic pertubation (post TQ)
+        dBB0:   float = 0.
+        dBB1:   float = 0.
 
-    def __init__(self, id='', verbose=True, **inputs):
+    @dataclass
+    class Output():
+        """
+        Output variables from the DREAM simulation.
+        """
+        t:      np.ndarray                  # simulation time
+        I_re:   np.ndarray                  # RE current
+        I_ohm:  np.ndarray                  # Ohmic current
+        I_tot:  np.ndarray                  # total current
+
+        # derived timing quantities
+        tCQ:    float = field(init=False)   # current quench time
+        t20:    float = field(init=False)   # I_ohm(t20) / I_ohm(0) = 20%
+        t80:    float = field(init=False)   # I_ohm(t80) / I_ohm(0) = 80%
+
+        def __post_init__(self):
+            """
+            Checks that all list sizes are equal and such that I_tot ≈ I_re + I_ohm.
+            Sets the current quench time, t20 and t80 (CQ reference points).
+
+            (OBS. used tolerance is not checked)
+            """
+            assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm])
+            # assert max(np.abs(self.I_tot - self.I_re - self.I_ohm)) < 1e-3
+            self.t20, self.t80, self.tCQ = utils.getCQTime(self.t, self.I_ohm)
+
+        def getMaxRECurrent(self):
+            return self.I_re.max()
+
+        def visualizeCurrents(self, ax=None, show=False):
+            utils.visualizeCurrents(self.t, self.I_ohm, self.I_re, ax=ax, show=show)
+            return ax
+
+    ############## DISRUPTION SIMULATION SETUP ##############
+
+    def __init__(self, id='baseline', verbose=True, **inputs):
         """
         Set input from baseline or from any user provided input parameters.
         """
@@ -121,13 +126,11 @@ class DREAMSimulation(Simulation):
         self.settingsFile       = f'{SETTINGS_DIR}{id}settings.h5'
         self.doubleIterations   = False
 
-        # two DREAM output files to join post simulation
+        self.ds1 = DREAMSettings()
+        self.ds2 = None
         self.do1 = None
         self.do2 = None
 
-        #### Set the disruption sequences in order ####
-        self.ds1 = DREAMSettings()
-        self.ds2 = None
 
         # Set timestep to be fixed throughout the entire simulation
         self.ds1.timestep.setDt(TMAX / NT)
