@@ -71,14 +71,14 @@ def setMagneticField(ds, nr=40, visualize=False):
     if visualize:
         ds.radialgrid.visualize(ntheta=200)
 
-def getInitialTemperature(T0, T1):
+def getInitialTemperature(T1, T2):
     """
     Returns the initial temperature profile.
     """
     global a, NR
 
     r = np.linspace(0, a, NR)
-    T = T0 * (1 - T1 * (r/a)**2)
+    T = T1 * (1 - T2 * (r/a)**2)
     return r, T
 
 
