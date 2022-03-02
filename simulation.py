@@ -1,29 +1,58 @@
 import numpy as np
+from dataclasses import dataclass
+
+@dataclass
+class Parameter:
+    """
+    Input parameter going into the simulation.
+    """
+    val: float
+    min: float
+    max: float
+
+    def __post_init__(self):
+        if not self.min < self.max:
+            raise AttributeError('The maximum must be strictly larger than the minimum.')
+        if self.val < self.min or self.max < self.val:
+            raise AttributeError(f'The value {self.val} is not within the domain interval.')
+
+
 
 class Simulation:
 
-    def __init__(self, baseline, id=None, verbose=True, **inputs):
+    @dataclass
+    class Input:
+        """
+        Input parameters for simulation object.
+        """
+        pass
+
+    @dataclass
+    class Output:
+        """
+        Output variables obtained when the simulation is finished.
+        """
+        pass
+
+
+    def __init__(self, id=None, verbose=True, **inputs):
         """
         Constructor.
         """
         self.id = id
         self.verbose = verbose
 
-        self.input = baseline
+        # Set input from any user provided input parameters.
+        try:
+            self.input = self.Input(**inputs)
+        except TypeError as err:
+            print(f'Provided inputs must exist in {Input().__dataclass_fields__.keys()}')
+            raise err()
+
         self.output = None
         self.objFun = None
 
-        # Set input from any user provided input parameters.
-        if inputs:
-            if verbose:
-                print('User provided the following input arguments:')
-            for i, (key, value) in enumerate(inputs.items()):
-                if key in baseline.keys():
-                    self.input[key] = value
-                    if verbose:
-                        print(f'\t({i+1}) {key} \t= {value}')
-                else:
-                    raise Exception(f'Did not expect keyword argument: {key}={value}')
+
 
 
     def run(self, doubleIterations=None):
