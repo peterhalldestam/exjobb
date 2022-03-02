@@ -112,8 +112,8 @@ def getDiffusionOperator(dBB, q=1, R0=1., svensson=True):
 	if svensson:
 		p = np.linspace(0, 1.5, 60)
 		xi = np.linspace(-1., 1., 45)
-		dBB, xi, p = np.meshgrid(dBB, xi, p, indexing='ij')
-		D = np.pi * R0 * q * dBB**2 * np.abs(xi) * p * c/(np.sqrt(1 + p**2))
+		dBB_mesh, xi_mesh, p_mesh = np.meshgrid(dBB, xi, p, indexing='ij')
+		D = np.pi * R0 * q * dBB_mesh**2 * np.abs(xi_mesh) * p_mesh * c/(np.sqrt(1 + p_mesh**2))
 		return D, xi, p
 
 	else:

@@ -39,9 +39,10 @@ ds_init.solver.setLinearSolver(Solver.LINEAR_SOLVER_MKL)
 ds_init.solver.setType(Solver.NONLINEAR)
 
 """ Create initial density, temperature and current profiles """
-rT0, T_init_profile = Tokamak.getInitialTemperature()
-rn0, ne_profile = Tokamak.getInitialDensity()
-rj0, j_prof = Tokamak.getCurrentDensity(nr=nr)
+rT0, T_init_profile = Tokamak.getInitialTemperature(T0=20e3, T1=0.99)
+rn0 = np.linspace(0, Tokamak.a, 40)
+ne_profile = 1e20*np.ones(len(rn0))	
+rj0, j_prof = Tokamak.getInitialCurrentDensity(j1=0.941, j2=0.41)
 
 fig, ax = plt.subplots(1, 3, figsize=(13, 5))
 
@@ -113,8 +114,11 @@ ds_init.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATI
 r_dBB = np.array([0, 0.1])
 dBB = 2e-3 * np.ones(len(r_dBB))
 
-Drr, xi_grid, p_grid = utils.getRRCoefficient(dBB, R0=Tokamak.R0)
+Drr, xi_grid, p_grid = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
 Drr = np.tile(Drr, (int(nt),1,1,1))
+
+print('\n\n hej! \n\n')
+print('\n xi: ', xi_grid.shape)
 
 pstar = 0.5
 
@@ -150,7 +154,7 @@ dBB = 1e-5 * np.ones(len(r_dBB))#0.1e-3 * np.ones(len(r_dBB))
 ds2.eqsys.T_cold.transport.setMagneticPerturbation(dBB=dBB[0])
 ds2.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
 
-Drr, xi_grid, p_grid = utils.getRRCoefficient(dBB, R0=Tokamak.R0)
+Drr, xi_grid, p_grid = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
 Drr = np.tile(Drr, (int(nt),1,1,1))
 
 ds2.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r_dBB, p=p_grid, xi=xi_grid, interp1d=Transport.INTERP1D_NEAREST)
