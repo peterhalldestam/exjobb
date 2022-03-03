@@ -111,11 +111,12 @@ class DREAMSimulation(Simulation):
             Checks that all list sizes are equal and sets the current quench
             time, t20 and t80 (CQ reference points).
             """
-            self.t       = self.do.grid.t
-            self.I_re    = self.do.eqsys.j_re.current()
-            self.I_ohm   = self.do.eqsys.j_ohm.current()
-            self.I_tot   = self.do.eqsys.j_tot.current()
-            self.T_cold  = self.do.eqsys.T_cold.data
+            self.r      = self.do.grid.r 
+            self.t      = self.do.grid.t
+            self.I_re   = self.do.eqsys.j_re.current()
+            self.I_ohm  = self.do.eqsys.j_ohm.current()
+            self.I_tot  = self.do.eqsys.j_tot.current()
+            self.T_cold = self.do.eqsys.T_cold.data
             self.t20, self.t80, self.tCQ = utils.getCQTime(self.t, self.I_ohm)
 
             assert len(self.t) == NT
@@ -132,7 +133,7 @@ class DREAMSimulation(Simulation):
             return ax
 
         def visualizeTemperature(self, times=[0,-1], ax=None, show=False):
-            utils.visualizeTemperature(sel.)
+            # utils.visualizeTemperature(sel.)
             self.do.eqsys.T_cold.plot(ax=ax, show=show, t=times, log=False)
             plt.show()
             return ax
