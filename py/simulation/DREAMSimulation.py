@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
-import sys
+import sys, os
 import pathlib
 import numpy as np
 import matplotlib.pyplot as plt
 from dataclasses import dataclass, field
 
+sys.path.append(os.path.abspath('..'))
 import utils
-import ITER as Tokamak
+import tokamaks.ITER as Tokamak
 from simulation import Simulation, Parameter
 
 try:
@@ -111,7 +112,7 @@ class DREAMSimulation(Simulation):
             Checks that all list sizes are equal and sets the current quench
             time, t20 and t80 (CQ reference points).
             """
-            self.r      = self.do.grid.r 
+            self.r      = self.do.grid.r
             self.t      = self.do.grid.t
             self.I_re   = self.do.eqsys.j_re.current()
             self.I_ohm  = self.do.eqsys.j_ohm.current()
@@ -390,7 +391,7 @@ def main():
     s = DREAMSimulation()
     s.run(doubleIterations=False)
 
-    # s.output.visualizeCurrents(show=True)
+    s.output.visualizeCurrents(show=True)
     s.output.visualizeTemperature(show=True)
 
     return 0
