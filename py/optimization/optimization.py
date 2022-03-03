@@ -18,14 +18,14 @@ class Optimization:
         pass
 
 
-    def __init__(self, objFun=None, verbose=True, **settings):
+    def __init__(self, simulation=None, verbose=True, **settings):
         """
         Constructor.
         """
         if objFun is None:
             raise AttributeError('Expected an objective function to be provided.')
 
-        self.objFun = objFun
+        self.simulation = simulation
         self.verbose = verbose
 
         # Configure settings provided by the user.
@@ -36,6 +36,8 @@ class Optimization:
             raise err
 
 
+    def run(self):
+        pass
 
 
 

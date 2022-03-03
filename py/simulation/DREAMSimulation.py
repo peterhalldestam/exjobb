@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 sys.path.append(os.path.abspath('..'))
 import utils
 import tokamaks.ITER as Tokamak
-from simulation import Simulation, Parameter
+from .simulation import Simulation, Parameter
 
 try:
     import DREAM
@@ -146,6 +146,8 @@ class DREAMSimulation(Simulation):
         Set input from baseline or from any user provided input parameters.
         """
         super().__init__(id=id, verbose=verbose, **inputs)
+
+        # self.objFun =....
 
         self.outputFile         = f'{OUTPUT_DIR}{id}output.h5'
         self.settingsFile       = f'{SETTINGS_DIR}{id}settings.h5'

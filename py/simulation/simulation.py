@@ -25,7 +25,14 @@ class Simulation:
         """
         Input parameters for simulation object.
         """
-        pass
+        index : int
+
+        def inDomain(self):
+            pass
+        def getArray():
+            pass
+        def fromVector():
+            pass
 
     @dataclass
     class Output:
@@ -41,6 +48,7 @@ class Simulation:
         """
         self.id = id
         self.verbose = verbose
+        self.objFun = None
 
         # Set input from any user provided input parameters.
         try:

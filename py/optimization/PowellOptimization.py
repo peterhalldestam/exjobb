@@ -2,6 +2,9 @@ import numpy as np
 from dataclasses import dataclass
 
 from optimization import Optimization
+from simulation.simulation import Simulation
+from simulation.DREAMSimulation import DREAMSimulation
+
 
 class PowellOptimization(Optimization):
 
@@ -13,14 +16,17 @@ class PowellOptimization(Optimization):
         pass
 
 
-    def __init__(self, objFun=None, verbose=True, **settings):
+    def __init__(self, simulation=None, verbose=True, **settings):
         """
         Constructor.
         """
-        super().__init__(self, objFun=objFun, verbose=verbose, **settings)
+        super().__init__(self, simulation=simulation, verbose=verbose, **settings)
 
 
+    def run(self):
 
+        assert isinstance(self.simulation, )
+        self.input = self.simulation.Input()
 
 
     def log(self, out='log.dat'):
