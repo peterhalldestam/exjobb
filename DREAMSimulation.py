@@ -3,6 +3,7 @@
 import sys
 import pathlib
 import numpy as np
+import matplotlib.pyplot as plt
 from dataclasses import dataclass, field
 
 import utils
@@ -30,13 +31,13 @@ import DREAM.Settings.TransportSettings as Transport
 
 # TSTOP = 100
 TMAX = 1.5e-1
-NT = 1000
+NT = 100
 NR = 20
 
 # thermal quench settings
 EXP_DECAY = True
 TQ_TIME_DECAY = 1e-3
-TQ_TMAX = 1e-6
+TQ_TMAX = 1e-3
 TQ_INITIAL_dBB0 = 1.5e-3
 
 SETTINGS_DIR    = 'settings/'
@@ -85,36 +86,55 @@ class DREAMSimulation(Simulation):
 
 
     @dataclass
-    class Output():
+    class Output(Simulation.Output):
         """
-        Output variables from the DREAM simulation.
+        Output variables from the DREAM simulation. The constructor expects one
+        DREAMOutput object as argument.
         """
-        t:      np.ndarray                  # simulation time
-        I_re:   np.ndarray                  # RE current
-        I_ohm:  np.ndarray                  # Ohmic current
-        I_tot:  np.ndarray                  # total current
+        do:     DREAMOutput
+
+        # Output quantities from DREAM output object
+        r:      np.ndarray = field(init=False)  # radial grid
+        t:      np.ndarray = field(init=False)  # simulation time
+        I_re:   np.ndarray = field(init=False)  # RE current
+        I_ohm:  np.ndarray = field(init=False)  # Ohmic current
+        I_tot:  np.ndarray = field(init=False)  # total current
+        T_cold: np.ndarray = field(init=False)  # cold electron temperature
 
         # Derived timing quantities
-        tCQ:    float = field(init=False)   # current quench time
+        tCQ:    float = field(init=False)   # current quench time, tCQ(t20, t80)
         t20:    float = field(init=False)   # I_ohm(t20) / I_ohm(0) = 20%
         t80:    float = field(init=False)   # I_ohm(t80) / I_ohm(0) = 80%
 
         def __post_init__(self):
             """
-            Checks that all list sizes are equal and such that I_tot ≈ I_re + I_ohm.
-            Sets the current quench time, t20 and t80 (CQ reference points).
-
-            (OBS. used tolerance is not checked)
+            Checks that all list sizes are equal and sets the current quench
+            time, t20 and t80 (CQ reference points).
             """
-            assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm])
-            # assert max(np.abs(self.I_tot - self.I_re - self.I_ohm)) < 1e-3
+            self.t       = self.do.grid.t
+            self.I_re    = self.do.eqsys.j_re.current()
+            self.I_ohm   = self.do.eqsys.j_ohm.current()
+            self.I_tot   = self.do.eqsys.j_tot.current()
+            self.T_cold  = self.do.eqsys.T_cold.data
             self.t20, self.t80, self.tCQ = utils.getCQTime(self.t, self.I_ohm)
+
+            assert len(self.t) == NT
+            assert len(self.r) == NR
+            assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm])
+            assert self.T_cold.shape == (NT, NR)
+
 
         def getMaxRECurrent(self):
             return self.I_re.max()
 
         def visualizeCurrents(self, ax=None, show=False):
-            utils.visualizeCurrents(self.t, self.I_ohm, self.I_re, ax=ax, show=show)
+            utils.visualizeCurrents(self.t, self.I_ohm, self.I_re, self.I_tot, ax=ax, show=show)
+            return ax
+
+        def visualizeTemperature(self, times=[0,-1], ax=None, show=False):
+            utils.visualizeTemperature(sel.)
+            self.do.eqsys.T_cold.plot(ax=ax, show=show, t=times, log=False)
+            plt.show()
             return ax
 
     ############## DISRUPTION SIMULATION SETUP ##############
@@ -134,7 +154,6 @@ class DREAMSimulation(Simulation):
         self.do1 = None
         self.do2 = None
 
-
         # Set timestep to be fixed throughout the entire simulation
         self.ds1.timestep.setDt(TMAX / NT)
 
@@ -151,7 +170,7 @@ class DREAMSimulation(Simulation):
         self.ds1.hottailgrid.setEnabled(False)
         self.ds1.runawaygrid.setEnabled(False)
         # Set the magnetic field from specified Tokamak (see imports)print
-        Tokamak.setMagneticField(self.ds1)
+        Tokamak.setMagneticField(self.ds1, nr=NR)
 
         # Set collision settings
         self.ds1.collisions.collfreq_mode        = Collisions.COLLFREQ_MODE_FULL
@@ -223,7 +242,7 @@ class DREAMSimulation(Simulation):
         I_ohm = np.append(self.do1.eqsys.j_ohm.current(), self.do2.eqsys.j_ohm.current()[1:])
         I_tot = np.append(self.do1.eqsys.j_tot.current(), self.do2.eqsys.j_tot.current()[1:])
 
-        self.output = self.Output(t=t, I_re=I_re, I_ohm=I_ohm, I_tot=I_tot)
+        self.output = self.Output(self.do2)
         return 0
 
     def _runExpDecayTQ(self):
@@ -370,8 +389,8 @@ def main():
     s = DREAMSimulation()
     s.run(doubleIterations=False)
 
-    s.output.visualizeCurrents(show=True)
-
+    # s.output.visualizeCurrents(show=True)
+    s.output.visualizeTemperature(show=True)
 
     return 0
 

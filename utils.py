@@ -33,14 +33,45 @@ def concatenate(arr1, arr2):
     out = np.squeeze(np.array(out))
     return out
 
-def visualizeCurrents(t, I_ohm, I_re, ax=None, show=False):
+def visualizeTemperature(r, T, times=[0,-1], ax=None, show=False):
     """
-    Plots the RE, Ohmic and total currents of given DREAM output file.
+    Plots the temperature profiles of selected times (times=[0,-1] plots the
+    temperature at the first and last timestep).
+
+    :param t:       Simulation time.
+    :param T:       Temperature distribution (NT x NR).
+    :param times:   Timesteps to plot the radial temperature distribution at.
+    :param ax:      matplotlib Axes object.
+    :param show:    Show the figure of the temperature profiles.
+    """
+    if ax is None:
+        ax = plt.axes()
+
+    # change units
+    T *= 1e-3       # eV to keV
+
+    for ti in times:
+        ax.plot(r, T[ti,:], label=ti)
+
+    ax.set_xlabel('minor radius (m)')
+    ax.set_ylabel('Temperature (keV)')
+
+    if show:
+        plt.legend('Timestep indices:', ncols=3)
+        plt.show()
+
+    return ax
+
+def visualizeCurrents(t, I_ohm, I_re, I_tot, ax=None, show=False):
+    """
+    Plots the RE, Ohmic and total currents.
 
     :param t:       Simulation time.
     :param I_re:    RE current.
     :param I_ohm:   Ohmic current.
-    :param ax:  matplotlib Axes object.
+    :param I_tot:   Total current.
+    :param ax:      matplotlib Axes object.
+    :param show:    Show the figure of the currents.
     """
     if ax is None:
         ax = plt.axes()
@@ -50,14 +81,15 @@ def visualizeCurrents(t, I_ohm, I_re, ax=None, show=False):
     I_re *= 1e-6    # A to MA
     I_ohm *= 1e-6
 
-    ax.plot(t, I_ohm, 'r', label='Ohm')
-    ax.plot(t, I_re,  'b', label='RE')
-    ax.plot(t, I_ohm + I_re, 'k', label='total')
+    ax.plot(t, I_ohm, 'r', label='Ohmic')
+    ax.plot(t, I_re,  'b', label='REs')
+    ax.plot(t, I_tot, 'k', label='total')
 
     ax.set_xlabel('time (ms)')
     ax.set_ylabel('current (MA)')
 
     if show:
+        plt.legend(title='Currents:')
         plt.show()
 
     return ax
