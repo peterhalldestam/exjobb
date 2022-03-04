@@ -27,16 +27,16 @@ class Simulation:
         Input parameters for simulation object.
         """
         def __post_init__(self):
-            for field in self.__dataclass_fields__:
-                if not isinstance(getattr(field, self), Parameter):
+            for field in self.__dataclass_fields__.keys():
+                if not isinstance(getattr(self, field), Parameter):
                     raise TypeError('Input object expected only Parameter attributes')
 
         def inDomain(self) -> bool:
             """
             Checks if each current input parameter is within its domain interval.
             """
-            for field in self.__dataclass_fields__:
-                parameter = getattr(field, self)
+            for field in self.__dataclass_fields__.keys():
+                parameter = getattr(self, field)
                 if parameter.inDomain():
                     return False
             return True
@@ -66,7 +66,7 @@ class Simulation:
         try:
             self.input = self.Input(**inputs)
         except TypeError as err:
-            print(f'Provided inputs must exist in {Input().__dataclass_fields__.keys()}')
+            print(f'Provided inputs must exist in {self.Input().__dataclass_fields__.keys()}')
             raise err
 
         self.output = None

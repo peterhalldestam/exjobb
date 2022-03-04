@@ -34,14 +34,14 @@ import DREAM.Settings.TransportSettings as Transport
 # Number of radial nodes
 
 # Number of time iterations in each step
-NT_IONIZ    = 1000
+NT_IONIZ    = 100
 NT_TQ       = 100
 NT_CQ       = 1000
 
 # Amount of time (s) in each step
 TMAX_TOT    = 1.5e-1
 TMAX_IONIZ  = 1e-6
-TMAX_TQ     = Tokamak.tau0 * 3
+TMAX_TQ     = Tokamak.t0 * 6
 
 # TSTOP = 100
 TMAX = 1.5e-1
@@ -135,10 +135,10 @@ class DREAMSimulation(Simulation):
             self.T_cold = self.do.eqsys.T_cold.data
             self.t20, self.t80, self.tCQ = utils.getCQTime(self.t, self.I_ohm)
 
-            assert len(self.t) == NT
+            # assert len(self.t) == NT
             assert len(self.r) == NR
             assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm])
-            assert self.T_cold.shape == (NT, NR)
+            # assert self.T_cold.shape == (NT, NR)
 
 
         def getMaxRECurrent(self):
@@ -164,72 +164,72 @@ class DREAMSimulation(Simulation):
 
         # self.objFun =....
 
-        self.outputFile         = f'{OUTPUT_DIR}{id}output.h5'
-        self.settingsFile       = f'{SETTINGS_DIR}{id}settings.h5'
+        # self.outputFile         = f'{OUTPUT_DIR}{id}output.h5'
+        # self.settingsFile       = f'{SETTINGS_DIR}{id}settings.h5'
         self.doubleIterations   = False
 
-        self.ds1 = DREAMSettings()
-        self.ds2 = None
+        self.ds = DREAMSettings()
         self.do1 = None
         self.do2 = None
 
         # Set solvers
-        self.ds1.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
+        self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
         # self.ds1.solver.setLinearSolver(Solver.LINEAR_SOLVER_MKL)
-        self.ds1.solver.setType(Solver.NONLINEAR)
-        self.ds1.solver.setMaxIterations(maxiter=500)
-        self.ds1.solver.tolerance.set(reltol=2e-6)
-        self.ds1.solver.tolerance.set(unknown='n_re', reltol=2e-6, abstol=1e5)
-        self.ds1.solver.tolerance.set(unknown='j_re', reltol=2e-6, abstol=1e-5) # j ~ e*c*n_e ~ n_e*1e-10 ?
+        self.ds.solver.setType(Solver.NONLINEAR)
+        self.ds.solver.setMaxIterations(maxiter=500)
+        self.ds.solver.tolerance.set(reltol=2e-6)
+        self.ds.solver.tolerance.set(unknown='n_re', reltol=2e-6, abstol=1e5)
+        self.ds.solver.tolerance.set(unknown='j_re', reltol=2e-6, abstol=1e-5) # j ~ e*c*n_e ~ n_e*1e-10 ?
 
         # Disable kinetic grids (we run purely fluid simulations)
-        self.ds1.hottailgrid.setEnabled(False)
-        self.ds1.runawaygrid.setEnabled(False)
+        self.ds.hottailgrid.setEnabled(False)
+        self.ds.runawaygrid.setEnabled(False)
         # Set the magnetic field from specified Tokamak (see imports)print
-        Tokamak.setMagneticField(self.ds1, nr=NR)
+        Tokamak.setMagneticField(self.ds, nr=NR)
 
         # Set collision settings
-        self.ds1.collisions.collfreq_mode        = Collisions.COLLFREQ_MODE_FULL
-        self.ds1.collisions.collfreq_type        = Collisions.COLLFREQ_TYPE_PARTIALLY_SCREENED
-        self.ds1.collisions.bremsstrahlung_mode  = Collisions.BREMSSTRAHLUNG_MODE_STOPPING_POWER
-        self.ds1.collisions.lnlambda             = Collisions.LNLAMBDA_ENERGY_DEPENDENT
+        self.ds.collisions.collfreq_mode        = Collisions.COLLFREQ_MODE_FULL
+        self.ds.collisions.collfreq_type        = Collisions.COLLFREQ_TYPE_PARTIALLY_SCREENED
+        self.ds.collisions.bremsstrahlung_mode  = Collisions.BREMSSTRAHLUNG_MODE_STOPPING_POWER
+        self.ds.collisions.lnlambda             = Collisions.LNLAMBDA_ENERGY_DEPENDENT
 
         # Add fuel
         if self.input.nH.val > 0:
-            self.ds1.eqsys.n_i.addIon('H', n=self.input.nH.val, Z=1, Z0=1, hydrogen=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+            self.ds.eqsys.n_i.addIon('H', n=self.input.nH.val, Z=1, Z0=1, hydrogen=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
         if self.input.nD.val > 0:
-            self.ds1.eqsys.n_i.addIon('D', n=self.input.nD.val, Z=1, Z0=1, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+            self.ds.eqsys.n_i.addIon('D', n=self.input.nD.val, Z=1, Z0=1, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
         if self.input.nT.val > 0:
-            self.ds1.eqsys.n_i.addIon('T', n=self.input.nT.val, Z=1, Z0=1, tritium=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+            self.ds.eqsys.n_i.addIon('T', n=self.input.nT.val, Z=1, Z0=1, tritium=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
         if self.input.nHe.val > 0:
             raise NotImplementedError('Helium is not yet implemented...')
 
         # Set fluid RE generation
-        self.ds1.eqsys.n_re.setDreicer(RE.DREICER_RATE_NEURAL_NETWORK)
-        self.ds1.eqsys.n_re.setAvalanche(RE.AVALANCHE_MODE_FLUID)
-        self.ds1.eqsys.n_re.setHottail(RE.HOTTAIL_MODE_ANALYTIC_ALT_PC)
+        self.ds.eqsys.n_re.setDreicer(RE.DREICER_RATE_NEURAL_NETWORK)
+        self.ds.eqsys.n_re.setAvalanche(RE.AVALANCHE_MODE_FLUID)
+        self.ds.eqsys.n_re.setHottail(RE.HOTTAIL_MODE_ANALYTIC_ALT_PC)
         # self.ds1.eqsys.n_re.setCompton(RE.COMPTON_MODE_NEGLECT)          # <== LOOK INTO THIS
         if self.input.nT.val > 0:
-            self.ds1.eqsys.n_re.setTritium(True)
+            self.ds.eqsys.n_re.setTritium(True)
 
         # Set self-consistent electric field (initial condition is determined by the current density)
-        self.ds1.eqsys.E_field.setType(EField.TYPE_SELFCONSISTENT)
-        self.ds1.eqsys.E_field.setBoundaryCondition(EField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=0, R0=Tokamak.R0)
+        self.ds.eqsys.E_field.setType(EField.TYPE_SELFCONSISTENT)
+        self.ds.eqsys.E_field.setBoundaryCondition(EField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=0, R0=Tokamak.R0)
 
-        # Set initial temperature profile
+        # # Set initial temperature profile
+        #
         rT, T = Tokamak.getInitialTemperature(self.input.T1.val, self.input.T2.val)
-        self.ds1.eqsys.T_cold.setInitialProfile(T, radius=rT)
+        self.ds.eqsys.T_cold.setInitialProfile(T, radius=rT)
 
         # Set initial current density
         rj, j = Tokamak.getInitialCurrentDensity(self.input.j1.val, self.input.j2.val)
-        self.ds1.eqsys.j_ohm.setInitialProfile(j, radius=rj, Ip0=self.input.Ip0.val)
+        self.ds.eqsys.j_ohm.setInitialProfile(j, radius=rj, Ip0=self.input.Ip0.val)
 
         # Background free electron density from ions
-        nfree, rn0 = self.ds1.eqsys.n_i.getFreeElectronDensity()
-        self.ds1.eqsys.f_hot.setInitialProfiles(rn0=rn0, n0=nfree, rT0=rT, T0=T)
+        nfree, rn0 = self.ds.eqsys.n_i.getFreeElectronDensity()
+        self.ds.eqsys.f_hot.setInitialProfiles(rn0=rn0, n0=nfree, rT0=rT, T0=T)
 
         # Boundary condition on f at p = pMax (assume f(p>pMax) = 0)
-        self.ds1.eqsys.f_hot.setBoundaryCondition(bc=FHot.BC_F_0)
+        self.ds.eqsys.f_hot.setBoundaryCondition(bc=FHot.BC_F_0)
 
 
     def run(self, doubleIterations=True):
@@ -237,8 +237,6 @@ class DREAMSimulation(Simulation):
         Runs the simulation and produce a single output.
         """
         assert self.output is None, 'Output object already exists!'
-
-        self._runInjectionIonization()
 
         if EXP_DECAY:
             self._runExpDecayTQ()
@@ -260,9 +258,11 @@ class DREAMSimulation(Simulation):
     def _runInjectionIonization(self):
 
 
+        self.ds.solver.setTolerance(reltol=1e-2)
+        self.ds.solver.setMaxIterations(maxiter=500)
         self.ds.timestep.setTmax(1e-11)
-        self.ds.timestep.setNt(1)
-        do = self._run()
+        self.ds.timestep.setNt(NT_IONIZ)
+        do = self._run(self.ds)
 
 
 
@@ -275,8 +275,8 @@ class DREAMSimulation(Simulation):
             raise NotImplementedError('injected ions are not yet implemented...')
 
 
-        self.ds1.timestep.setNt(NT_IONIZ)
-        self.ds1.timestep.setTmax(TMAX_IONIZ)
+        self.ds.timestep.setNt(NT_IONIZ)
+        self.ds.timestep.setTmax(TMAX_IONIZ)
 
 
 
@@ -285,51 +285,54 @@ class DREAMSimulation(Simulation):
         Run an exponential decay thermal quench (prescribed temperature evolution)the
         """
         # Set prescribed temperature evolution
-        self.ds1.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
+        self.ds.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
 
         # Set exponential-decay temperature
-        t, r, T = Tokamak.getTemperatureEvolution(self.input.T1.val, self.input.T2.val, tmax=TMAX, nt=NT)
-        self.ds1.eqsys.T_cold.setPrescribedData(T, radius=r, times=t)
+        t, r, T = Tokamak.getTemperatureEvolution(self.input.T1.val, self.input.T2.val, tmax=TMAX_TQ, nt=NT_TQ)
+        self.ds.eqsys.T_cold.setPrescribedData(T, radius=r, times=t)
+
+        self._runInjectionIonization()
 
         # Set TQ time stepper settings
-        self.ds1.timestep.setTmax(TQ_TMAX)
+        self.ds.timestep.setNt(NT_TQ)
+        self.ds.timestep.setTmax(TMAX_TQ)
 
         # run TQ part of simulation
-        out = self._getFileName('TQ_output', OUTPUT_DIR)
-        self.ds1.output.setFilename(out)
-        self.ds1.save(self._getFileName('TQ_settings', SETTINGS_DIR))
-        self.do1 = self._run(self.ds1, out)
+        # out = self._getFileName('TQ_output', OUTPUT_DIR)
+        # self.ds.output.setFilename(out)
+        # self.ds.save(self._getFileName('TQ_settings', SETTINGS_DIR))
+        self.do1 = self._run(self.ds)
 
         ##### Post-TQ (self consistent temperature evolution) #####
 
-        self.ds2 = DREAMSettings(self.ds1)
-        self.ds2.fromOutput(out)
+        # self.ds2 = DREAMSettings(self.ds1)
+        # self.ds2.fromOutput(out)
 
-        # Change to self consistent temperature and set external magnetic pertubation
-        r, dBB = utils.getQuadraticMagneticPerturbation(self.ds2, self.input.dBB1.val, self.input.dBB2.val)
-        self._setSvenssonTransport(self.ds2, dBB, r)
+        # Set CQ/post-TQ time stepper settings
+        self.ds.timestep.setNt(NT_CQ)
+        self.ds.timestep.setTmax(TMAX - TMAX_TQ - TMAX_IONIZ)
+        # # Change to self consistent temperature and set external magnetic pertubation
+        r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, self.input.dBB1.val, self.input.dBB2.val)
+        self._setSvenssonTransport(self.ds, dBB, r)
 
-        # Set post-TQ time stepper settings
-        self.ds2.timestep.setTmax(TMAX - TQ_TMAX)
 
-        # run post-TQ part of simulation
-        out = self._getFileName('pTQ_output', OUTPUT_DIR)
-        self.ds2.output.setFilename(out)
-        self.ds2.save(self._getFileName('pTQ_setting', SETTINGS_DIR))
-        self.do2 = self._run(self.ds2)
+        print(self.ds.timestep.tmax)
+
+        # run final part of simulation
+        self.do2 = self._run(self.ds)
 
 
     def _runPerturbTQ(self):
         raise NotImplementedError('TQ_PERTURB is not yet implemented...')
 
         # Set edge vanishing TQ magnetic pertubation
-        r, dBB = utils.getQuadraticMagneticPerturbation(self.ds1, TQ_INITIAL_dBB0, -1/Tokamak.a**2)
-        self._setSvenssonTransport(self.ds1, dBB, r)
+        r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, TQ_INITIAL_dBB0, -1/Tokamak.a**2)
+        self._setSvenssonTransport(self.ds, dBB, r)
 
         # ds1.timestep.setTerminationFunction(lambda s: terminate(s, TSTOP))
         # self.run(dreampyface=True)
 
-        self.ds = DREAMSettings(self.ds1)
+        # self.ds = DREAMSettings(self.ds1)
         #...
 
 
@@ -343,15 +346,17 @@ class DREAMSimulation(Simulation):
         ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
         ds.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
 
+        sys.exit(f'Hannes! Jag tror felet ligger här nånstans. Efter rad {sys._getframe().f_lineno} ungefär. Kan ha fel... / Kungen')
+
         # Enable magnetic pertubations that will allow for radial transport
-        t = np.linspace(0, TMAX, NT)
+        t = np.linspace(0, ds.timestep.tmax, ds.timestep.nt)
 
         ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-        ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=np.tile(dBB, (NT, 1)), r=r, t=t)
+        ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=np.tile(dBB, (ds.timestep.nt, 1)), r=r, t=t)
 
         # Rechester-Rosenbluth diffusion operator
         Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
-        Drr = np.tile(Drr, (NT,1,1,1))
+        Drr = np.tile(Drr, (ds.timestep.nt,1,1,1))
 
         ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
         ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
@@ -376,7 +381,7 @@ class DREAMSimulation(Simulation):
                 s = dreampyface.setup_simulation(self.ds)
                 do = s.run()
             else:
-                do = runiface(self.ds, out, quiet=not self.verbose)
+                do = runiface(self.ds, quiet=not self.verbose)
         except DREAMException as err:
             if self.doubleIterations:
                 dt = self.ds.timestep.dt
