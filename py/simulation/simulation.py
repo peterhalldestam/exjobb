@@ -13,10 +13,11 @@ class Parameter:
     def __post_init__(self):
         if not self.min < self.max:
             raise AttributeError('The maximum must be strictly larger than the minimum.')
-        if self.val < self.min or self.max < self.val:
-            raise AttributeError(f'The value {self.val} is not within the domain interval.')
+        # if self.val < self.min or self.max < self.val:
+        #     raise AttributeError(f'The value {self.val} is not within the domain interval.')
 
-
+    def inDomain(self):
+        return (self.val < self.max and self.min < self.val)
 
 class Simulation:
 
@@ -25,10 +26,21 @@ class Simulation:
         """
         Input parameters for simulation object.
         """
-        index : int
+        def __post_init__(self):
+            for field in self.__dataclass_fields__:
+                if not isinstance(getattr(field, self), Parameter):
+                    raise TypeError('Input object expected only Parameter attributes')
 
-        def inDomain(self):
-            pass
+        def inDomain(self) -> bool:
+            """
+            Checks if each current input parameter is within its domain interval.
+            """
+            for field in self.__dataclass_fields__:
+                parameter = getattr(field, self)
+                if parameter.inDomain():
+                    return False
+            return True
+
         def getArray():
             pass
         def fromVector():
@@ -70,5 +82,5 @@ class Simulation:
         self.output = None
         pass
 
-    def isFinished(self):
+    def isFinished(self) -> bool:
         return self.output is not None

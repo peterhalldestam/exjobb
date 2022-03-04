@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 sys.path.append(os.path.abspath('..'))
 import utils
 import tokamaks.ITER as Tokamak
-from .simulation import Simulation, Parameter
+from simulation import Simulation, Parameter
 
 try:
     import DREAM
@@ -29,6 +29,19 @@ import DREAM.Settings.Equations.RunawayElectrons as RE
 import DREAM.Settings.Equations.HotElectronDistribution as FHot
 import DREAM.Settings.Solver as Solver
 import DREAM.Settings.TransportSettings as Transport
+
+
+# Number of radial nodes
+
+# Number of time iterations in each step
+NT_IONIZ    = 1000
+NT_TQ       = 100
+NT_CQ       = 1000
+
+# Amount of time (s) in each step
+TMAX_TOT    = 1.5e-1
+TMAX_IONIZ  = 1e-6
+TMAX_TQ     = Tokamak.tau0 * 3
 
 # TSTOP = 100
 TMAX = 1.5e-1
@@ -69,7 +82,9 @@ class DREAMSimulation(Simulation):
 
         # Injected ion densities
         nD2:    Parameter = Parameter(min=0., max=MAX_INJECTED_DENSITY, val=0.)
+        aD2:    Parameter = Parameter(min=-10, max=10,                  val=0.)
         nNe:    Parameter = Parameter(min=0., max=MAX_INJECTED_DENSITY, val=0.)
+        aNe:    Parameter = Parameter(min=-10, max=10,                  val=0.)
         #...
 
         # Inital current density profile
@@ -158,9 +173,6 @@ class DREAMSimulation(Simulation):
         self.do1 = None
         self.do2 = None
 
-        # Set timestep to be fixed throughout the entire simulation
-        self.ds1.timestep.setDt(TMAX / NT)
-
         # Set solvers
         self.ds1.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
         # self.ds1.solver.setLinearSolver(Solver.LINEAR_SOLVER_MKL)
@@ -191,12 +203,6 @@ class DREAMSimulation(Simulation):
             self.ds1.eqsys.n_i.addIon('T', n=self.input.nT.val, Z=1, Z0=1, tritium=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
         if self.input.nHe.val > 0:
             raise NotImplementedError('Helium is not yet implemented...')
-
-        # Add injected ions
-        if self.input.nNe.val > 0:
-            raise NotImplementedError('injected ions are not yet implemented...')
-        if self.input.nD2.val > 0:
-            raise NotImplementedError('injected ions are not yet implemented...')
 
         # Set fluid RE generation
         self.ds1.eqsys.n_re.setDreicer(RE.DREICER_RATE_NEURAL_NETWORK)
@@ -232,6 +238,8 @@ class DREAMSimulation(Simulation):
         """
         assert self.output is None, 'Output object already exists!'
 
+        self._runInjectionIonization()
+
         if EXP_DECAY:
             self._runExpDecayTQ()
         else:
@@ -248,6 +256,29 @@ class DREAMSimulation(Simulation):
 
         self.output = self.Output(self.do2)
         return 0
+
+    def _runInjectionIonization(self):
+
+
+        self.ds.timestep.setTmax(1e-11)
+        self.ds.timestep.setNt(1)
+        do = self._run()
+
+
+
+        # Add injected ions
+        if self.input.nNe.val > 0:
+            r, nNe = utils.getDensityProfile(do, self.input.nNe.val, self.input.alphaNe.val)
+
+
+        if self.input.nD2.val > 0:
+            raise NotImplementedError('injected ions are not yet implemented...')
+
+
+        self.ds1.timestep.setNt(NT_IONIZ)
+        self.ds1.timestep.setTmax(TMAX_IONIZ)
+
+
 
     def _runExpDecayTQ(self):
         """
@@ -332,7 +363,7 @@ class DREAMSimulation(Simulation):
 
 
 
-    def _run(self, ds, out='out.h5', doubleIterations=None, dreampyface=False, ntmax=1e7):
+    def _run(self, out=None, doubleIterations=None, dreampyface=False, ntmax=1e7):
         """
         Run simulation and rerun simulation with a doubled number of timesteps
         if it crashes.
@@ -342,20 +373,20 @@ class DREAMSimulation(Simulation):
             self.doubleIterations = doubleIterations
         try:
             if dreampyface:
-                s = dreampyface.setup_simulation(ds)
+                s = dreampyface.setup_simulation(self.ds)
                 do = s.run()
             else:
-                do = runiface(ds, out, quiet=not self.verbose)
+                do = runiface(self.ds, out, quiet=not self.verbose)
         except DREAMException as err:
             if self.doubleIterations:
-                dt = ds.timestep.dt
+                dt = self.ds.timestep.dt
                 if dt >= ntmax / NT:
                     print(err)
                     print('ERROR : Skipping this simulation!')
                 else:
                     print(err)
                     print(f'WARNING : Timestep is reduced from {dt} to {.5*dt}!')
-                    ds.timestep.setDt(2*dt)
+                    self.ds.timestep.setDt(2*dt)
                     self._run(ds, doubleIterations=True, dreampyface=dreampyface)
             else:
                 raise err

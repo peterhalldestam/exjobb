@@ -20,6 +20,15 @@ except ModuleNotFoundError:
 
 from DREAM import DREAMOutput
 
+def getDensityProfile(do, n, c):
+    """
+    Returns a density profile with the total (volume integrated) number of
+    particles the same as if the density was radially constant n.
+    """
+    profile = .5 * (1 + np.tanh(c * ((do.grid.r/do.grid.a) - .5)))
+    return do.grid.r, n * profile * do.grid.integrate(1) / do.grid.integrate(profile)
+
+
 def concatenate(arr1, arr2):
     """
     Returns the concatenation of all entered arrays, with the initial
