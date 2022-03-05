@@ -62,20 +62,6 @@ def getDensityProfile(do, n, c):
     profile = .5 * (1 + np.tanh(c * ((do.grid.r/do.grid.a) - .5)))
     return do.grid.r, n * profile * do.grid.integrate(1) / do.grid.integrate(profile)
 
-
-def concatenate(arr1, arr2):
-    """
-    Returns the concatenation of all entered arrays, with the initial
-    timestep removed.
-
-    :param arr1, [arr2,...]: Any number of 1d arrays to concatenate.
-    """
-    out = []
-    out.append(arr1[:])
-    out.append(arr2[1:])
-    out = np.squeeze(np.array(out))
-    return out
-
 def visualizeTemperature(r, T, times=[0,-1], ax=None, show=False):
     """
     Plots the temperature profiles of selected times (times=[0,-1] plots the
