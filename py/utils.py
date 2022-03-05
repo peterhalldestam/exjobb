@@ -20,6 +20,40 @@ except ModuleNotFoundError:
 
 from DREAM import DREAMOutput
 
+def join(dataStr: str, *dos: list[DREAMOutput], time=False, radius=False) -> np.ndarray:
+    """
+    Joins data obtained from any number of DREAM output objects in *dos.
+    Recognizing axis 0 as the temporal dimension in every data array, this
+    function appends the arrays into a single time sequence.
+
+    :param dataStr:     DREAM output data to join, e.g. 'eqsys.T_cold.data'.
+    :param dos:         Any number of DREAM output objects ordered in time.
+    :param time:        If true, the data arrays are treated as the simulation times.
+    :param radius:      If true, return the radial grid from the first output.
+    """
+    t = 0
+    q = np.array([])
+    for i, do in enumerate(*dos):
+        obj = do
+        for attr in dataStr.split('.'):
+            if attr.endswith('()'):
+                attr = attr[:-2]
+                obj = getattr(obj, attr)()
+            else:
+                obj = getattr(obj, attr)
+
+        obj = np.array(obj)
+        if not i:
+            q = np.array(obj)
+
+            if radius:
+                return q
+        else:
+            q = np.append(q, t + obj[1:], axis=0)
+        if time:
+            t += obj[-1]
+    return q
+
 def getDensityProfile(do, n, c):
     """
     Returns a density profile with the total (volume integrated) number of
@@ -47,7 +81,7 @@ def visualizeTemperature(r, T, times=[0,-1], ax=None, show=False):
     Plots the temperature profiles of selected times (times=[0,-1] plots the
     temperature at the first and last timestep).
 
-    :param t:       Simulation time.
+    :param r:       Minor radius.
     :param T:       Temperature distribution (NT x NR).
     :param times:   Timesteps to plot the radial temperature distribution at.
     :param ax:      matplotlib Axes object.
@@ -57,7 +91,7 @@ def visualizeTemperature(r, T, times=[0,-1], ax=None, show=False):
         ax = plt.axes()
 
     # change units
-    T *= 1e-3       # eV to keV
+    T *= 1e-3   # eV to keV
 
     for ti in times:
         ax.plot(r, T[ti,:], label=ti)
@@ -66,12 +100,42 @@ def visualizeTemperature(r, T, times=[0,-1], ax=None, show=False):
     ax.set_ylabel('Temperature (keV)')
 
     if show:
-        plt.legend('Timestep indices:', ncols=3)
+        plt.legend('Timestep indices:', ncol=3)
         plt.show()
 
     return ax
 
-def visualizeCurrents(t, I_ohm, I_re, I_tot, ax=None, show=False):
+def visualizeTemperatureEvolution(t, T, radii=[0], ax=None, show=False):
+    """
+    Plots the temperature evolution at given radial nodes (radii=[0] plots the
+    temperature at the core over time).
+
+    :param t:       Simulation time.
+    :param T:       Temperature distribution (NT x NR).
+    :param radii:   Radial nodes to plot temperature evolution.
+    :param ax:      matplotlib Axes object.
+    :param show:    Show the figure of the temperature evolutions.
+    """
+    if ax is None:
+        ax = plt.axes()
+
+    # change units
+    # T *= 1e-3   # eV to keV
+    # t *= 1e3    # s to ms
+
+    for ri in radii:
+        ax.plot(t, T[:,ri], label=ri)
+
+    ax.set_xlabel('time (ms)')
+    ax.set_ylabel('temperature (keV)')
+
+    if show:
+        plt.legend()
+        plt.show()
+
+    return ax
+
+def visualizeCurrents(t, I_ohm, I_re, I_tot, log=False, ax=None, show=False):
     """
     Plots the RE, Ohmic and total currents.
 
@@ -97,6 +161,9 @@ def visualizeCurrents(t, I_ohm, I_re, I_tot, ax=None, show=False):
     ax.set_xlabel('time (ms)')
     ax.set_ylabel('current (MA)')
 
+    if log:
+        ax.set_yscale('log')
+
     if show:
         plt.legend(title='Currents:')
         plt.show()
@@ -112,13 +179,8 @@ def getCQTime(t, I_ohm, tol=5e-2):
     :param tol:     Tolerance value.
 
 	"""
-
-    print(I_ohm)
-
     i80 = np.argmin(np.abs(I_ohm/I_ohm[0] - .8))
     i20 = np.argmin(np.abs(I_ohm/I_ohm[0] - .2))
-
-    print(i80, i20)
 
     if np.abs(I_ohm[i80]/I_ohm[0] - .8) > tol:
 	    warnings.warn(f'\nData point at 80% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.')

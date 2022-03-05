@@ -33,7 +33,7 @@ J2 = .5
 ne0 = 1e20  # electron density (m^-3)
 t0  = 1e-3  # xponential decay time (s)
 T_initial = 2e4
-T_final = 5e1
+T_final = 50
 
 # Radial grid resolution
 NR = 101
@@ -89,36 +89,39 @@ def getFinalTemperature(T0=T_final):
     global a, NR
 
     r = np.linspace(0, a, NR)
-    T = T0 * np.ones(NR)
+    T = T0*np.ones(NR)
     # Flat temperature profile
     return r, T
 
 
-def getTemperatureEvolution(T0, T1, tau0=t0, T_final=T_final, tmax=1.5e-1, nt=100):
+def getTemperatureEvolution(T1, T2, tau0=t0, T_final=T_final, tmax=None, nt=100):
     """
     Returns the spatiotemporal temperature profile
     """
-    r, T_initial = getInitialTemperature(T0, T1)
-    _, T_final = getFinalTemperature()
+    r, T_i = getInitialTemperature(T1, T2)
+    _, T_f = getFinalTemperature()
+    # _, T_f = getInitialTemperature(T_final, T2)
+
+    if tmax is None:
+        # tmax = -tau0 * np.log((100 - T_f[0]) / (T_i[0] - T_f[0]))
+        tmax=6e-3
 
     t = np.linspace(0, tmax, nt).reshape((nt,1))
 
-    T_initial = T_initial.reshape((1, r.size))
-    T_final = T_final.reshape((1, r.size))
+    T_i = T_i.reshape((1, r.size))
+    T_f = T_f.reshape((1, r.size))
 
-    T = T_final + (T_initial - T_final) * np.exp(-t/tau0)
+    T = T_f + (T_i - T_f) * np.exp(-t/tau0)
     t = t.reshape((nt,))
 
     return t, r, T
 
 
-def getInitialCurrentDensity(j1, j2):
+def getInitialCurrentDensity(j1, j2, nr):
     """
     Returns the initial current density profile.
     """
-    global a, NR
-
-    r = np.linspace(0, a, NR)
+    global a
+    r = np.linspace(0, a, nr)
     j = (1 - j1 * (r/a)**2) ** j2
-
     return r, j
