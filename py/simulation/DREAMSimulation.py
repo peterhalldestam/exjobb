@@ -48,7 +48,8 @@ TMAX_TQ     = Tokamak.t0 * 4
 
 # thermal quench settings
 EXP_DECAY = True
-TQ_TIME_DECAY = Tokamak.t0
+TQ_DECAY_TIME = Tokamak.t0
+TQ_FINAL_TEMPERATURE = Tokamak.T_final
 TQ_INITIAL_dBB0 = 1.5e-3
 
 SETTINGS_DIR    = 'settings/'
@@ -196,6 +197,7 @@ class DREAMSimulation(Simulation):
         self.ds.collisions.collfreq_type        = Collisions.COLLFREQ_TYPE_PARTIALLY_SCREENED
         self.ds.collisions.bremsstrahlung_mode  = Collisions.BREMSSTRAHLUNG_MODE_STOPPING_POWER
         self.ds.collisions.lnlambda             = Collisions.LNLAMBDA_ENERGY_DEPENDENT
+        self.ds.collisions.pstar_mode = Collisions.PSTAR_MODE_COLLISIONAL
 
         # Add fuel
         if self.input.nH.val > 0:
@@ -209,9 +211,9 @@ class DREAMSimulation(Simulation):
 
         # Set fluid RE generation
         self.ds.eqsys.n_re.setDreicer(RE.DREICER_RATE_NEURAL_NETWORK)
-        self.ds.eqsys.n_re.setAvalanche(RE.AVALANCHE_MODE_FLUID)
+        self.ds.eqsys.n_re.setAvalanche(RE.AVALANCHE_MODE_FLUID_HESSLOW)
         self.ds.eqsys.n_re.setHottail(RE.HOTTAIL_MODE_ANALYTIC_ALT_PC)
-        # ds.eqsys.n_re.setCompton(RE.COMPTON_MODE_NEGLECT)          # <== LOOK INTO THIS
+        self.ds.eqsys.n_re.setCompton(RE.COMPTON_RATE_ITER_DMS)          # <== LOOK INTO THIS
         if self.input.nT.val > 0:
             self.ds.eqsys.n_re.setTritium(True)
 
@@ -228,13 +230,16 @@ class DREAMSimulation(Simulation):
         self.ds.eqsys.f_hot.setInitialProfiles(rn0=rn0, n0=nfree, rT0=rT, T0=T)
 
         # Boundary condition on f at p = pMax (assume f(p>pMax) = 0)
-        self.ds.eqsys.f_hot.setBoundaryCondition(bc=FHot.BC_F_0)
+        # self.ds.eqsys.f_hot.setBoundaryCondition(bc=FHot.BC_F_0)
 
         # We need to access methods from within a DREAM output object
         self.ds.timestep.setTmax(1e-11)
         self.ds.timestep.setNt(1)
-        self.do = self._run(verbose=False)
-
+        out = self._getFileName('init_output', OUTPUT_DIR)
+        self.ds.output.setFilename(out)
+        self.do = self._run(out=out, verbose=False)
+        self.ds = DREAMSettings(self.ds)
+        self.ds.fromOutput(out, ignore=['n_i'])
         # Set self-consistent electric field (initial condition is determined by the current density)
         self.ds.eqsys.E_field.setType(EField.TYPE_SELFCONSISTENT)
         self.ds.eqsys.E_field.setBoundaryCondition(EField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=0, R0=Tokamak.R0)
@@ -291,6 +296,7 @@ class DREAMSimulation(Simulation):
         do = self._run(out=out)
 
         self.ds = DREAMSettings(self.ds)
+        self.ds.clearIgnore()
         self.ds.fromOutput(out)
         return do
 
@@ -304,7 +310,7 @@ class DREAMSimulation(Simulation):
         self.ds.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
 
         # Set exponential-decay temperature
-        t, r, T = Tokamak.getTemperatureEvolution(self.input.T1.val, self.input.T2.val, tmax=TMAX_TQ)#, nt=NT_TQ)
+        t, r, T = Tokamak.getTemperatureEvolution(self.input.T1.val, self.input.T2.val, tau0=TQ_DECAY_TIME, T_final=TQ_FINAL_TEMPERATURE, tmax=TMAX_TQ)#, nt=NT_TQ)
         self.ds.eqsys.T_cold.setPrescribedData(T, radius=r, times=t)
 
         do1 = self._runInjectionIonization()
