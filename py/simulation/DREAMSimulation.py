@@ -36,13 +36,13 @@ NR = 5
 
 # Number of time iterations in each step
 NT_IONIZ    = 1000
-NT_TQ       = 2000
+NT_TQ       = 3000
 NT_CQ       = 4000
 
 # Amount of time (s) in each step
 TMAX_TOT    = 1.5e-1
 TMAX_IONIZ  = 1e-6
-TMAX_TQ     = Tokamak.t0 * 4
+TMAX_TQ     = Tokamak.t0 * 8
 
 
 
@@ -80,8 +80,8 @@ class DREAMSimulation(Simulation):
             """
             # Fuel densities
             self.nH         = Parameter(min=0., max=MAX_FUEL_DENSITY,       val=0.)
-            self.nD         = Parameter(min=0., max=MAX_FUEL_DENSITY,       val=Tokamak.ne0)
-            self.nT         = Parameter(min=0., max=MAX_FUEL_DENSITY,       val=0.)
+            self.nD         = Parameter(min=0., max=MAX_FUEL_DENSITY,       val=0.5*Tokamak.ne0)
+            self.nT         = Parameter(min=0., max=MAX_FUEL_DENSITY,       val=0.5*Tokamak.ne0)
             self.nHe        = Parameter(min=0., max=MAX_FUEL_DENSITY,       val=0.)
 
             # Injected ion densities
@@ -210,8 +210,8 @@ class DREAMSimulation(Simulation):
         # Set fluid RE generation
         self.ds.eqsys.n_re.setDreicer(RE.DREICER_RATE_NEURAL_NETWORK)
         self.ds.eqsys.n_re.setAvalanche(RE.AVALANCHE_MODE_FLUID)
-        self.ds.eqsys.n_re.setHottail(RE.HOTTAIL_MODE_ANALYTIC_ALT_PC)
-        # ds.eqsys.n_re.setCompton(RE.COMPTON_MODE_NEGLECT)          # <== LOOK INTO THIS
+        #self.ds.eqsys.n_re.setHottail(RE.HOTTAIL_MODE_ANALYTIC_ALT_PC)
+        self.ds.eqsys.n_re.setCompton(RE.COMPTON_RATE_ITER_DMS)          # <== LOOK INTO THIS
         if self.input.nT.val > 0:
             self.ds.eqsys.n_re.setTritium(True)
 
@@ -224,11 +224,12 @@ class DREAMSimulation(Simulation):
         self.ds.eqsys.T_cold.setPrescribedData(T, radius=rT)
 
         # Background free electron density from ions
-        nfree, rn0 = self.ds.eqsys.n_i.getFreeElectronDensity()
-        self.ds.eqsys.f_hot.setInitialProfiles(rn0=rn0, n0=nfree, rT0=rT, T0=T)
+        #nfree, rn0 = self.ds.eqsys.n_i.getFreeElectronDensity()
+        #self.ds.eqsys.f_hot.setInitialProfiles(rn0=rn0, n0=nfree, rT0=rT, T0=T)
 
         # Boundary condition on f at p = pMax (assume f(p>pMax) = 0)
-        self.ds.eqsys.f_hot.setBoundaryCondition(bc=FHot.BC_F_0)
+        #self.ds.eqsys.f_hot.setBoundaryCondition(bc=FHot.BC_F_0)
+        self.ds.other.include('fluid')
 
         # We need to access methods from within a DREAM output object
         self.ds.timestep.setTmax(1e-11)
@@ -374,12 +375,12 @@ class DREAMSimulation(Simulation):
         Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
         Drr = np.tile(Drr, (nt,1,1,1))
 
-        self.ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
-        self.ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
+        #self.ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
+        #self.ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
 
         # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
-        self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
-        self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+        #self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
+        #self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
 
 
 

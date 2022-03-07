@@ -31,7 +31,7 @@ J2 = .5
 
 # Simulation parameters
 ne0 = 1e20  # electron density (m^-3)
-t0  = 1e-3  # xponential decay time (s)
+t0  = 5e-4#1e-3  # xponential decay time (s)
 T_initial = 2e4
 T_final = 50
 
