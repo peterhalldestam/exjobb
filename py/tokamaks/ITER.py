@@ -103,8 +103,8 @@ def getTemperatureEvolution(T1, T2, tau0=t0, T_final=T_final, tmax=None, nt=100)
     # _, T_f = getInitialTemperature(T_final, T2)
 
     if tmax is None:
-        # tmax = -tau0 * np.log((100 - T_f[0]) / (T_i[0] - T_f[0]))
-        tmax=6e-3
+        tmax = -tau0 * np.log((100 - T_f[0]) / (T_i[0] - T_f[0]))
+        # tmax=6e-3
 
     t = np.linspace(0, tmax, nt).reshape((nt,1))
 
