@@ -20,7 +20,7 @@ except ModuleNotFoundError:
 
 from DREAM import DREAMOutput
 
-def join(dataStr: str, *dos: list[DREAMOutput], time=False, radius=False) -> np.ndarray:
+def join(dataStr: str, *dos: DREAMOutput, time=False, radius=False) -> np.ndarray:
     """
     Joins data obtained from any number of DREAM output objects in *dos.
     Recognizing axis 0 as the temporal dimension in every data array, this

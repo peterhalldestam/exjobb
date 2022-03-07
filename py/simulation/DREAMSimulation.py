@@ -111,7 +111,7 @@ class DREAMSimulation(Simulation):
         Output variables from the DREAM simulation. The constructor expects one
         or more DREAMOutput objects as arguments.
         """
-        dos: list[DREAMOutput]
+        dos: DREAMOutput
 
         # Output quantities from DREAM output object
         r:      np.ndarray  # radial grid
