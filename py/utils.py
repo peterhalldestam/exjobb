@@ -34,6 +34,7 @@ def join(dataStr: str, *dos: DREAMOutput, time=False, radius=False) -> np.ndarra
     t = 0
     q = np.array([])
     for i, do in enumerate(*dos):
+        if time:print('hh', i)
         obj = do
         for attr in dataStr.split('.'):
             if attr.endswith('()'):
@@ -82,7 +83,7 @@ def visualizeTemperature(r, T, times=[0,-1], ax=None, show=False):
     for ti in times:
         ax.plot(r, T[ti,:], label=ti)
 
-    ax.legend('Timestep indices:')
+    ax.legend(title='Timestep indices:')
     ax.set_xlabel('minor radius (m)')
     ax.set_ylabel('temperature (keV)')
 
@@ -137,8 +138,8 @@ def visualizeCurrents(t, I_ohm, I_re, I_tot, log=False, ax=None, show=False):
 
     # change units
     t *= 1e3        # s to ms
-    I_re *= 1e-6    # A to MA
-    I_ohm *= 1e-6
+    # I_re *= 1e-6    # A to MA
+    # I_ohm *= 1e-6
 
     ax.plot(t, I_ohm, 'r', label='Ohmic')
     ax.plot(t, I_re,  'b', label='REs')

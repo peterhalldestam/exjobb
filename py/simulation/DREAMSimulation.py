@@ -40,15 +40,17 @@ NT_TQ       = 3000
 NT_CQ       = 4000
 
 # Amount of time (s) in each step
-TMAX_TOT    = 1.5e-1
+TMAX_TOT    = 1e-1
 TMAX_IONIZ  = 1e-6
 TMAX_TQ     = Tokamak.t0 * 8
 
 
 
+
 # thermal quench settings
 EXP_DECAY = True
-TQ_TIME_DECAY = Tokamak.t0
+TQ_DECAY_TIME = Tokamak.t0
+TQ_FINAL_TEMPERATURE = Tokamak.T_final
 TQ_INITIAL_dBB0 = 1.5e-3
 
 SETTINGS_DIR    = 'settings/'
@@ -80,12 +82,12 @@ class DREAMSimulation(Simulation):
             """
             # Fuel densities
             self.nH         = Parameter(min=0., max=MAX_FUEL_DENSITY,       val=0.)
-            self.nD         = Parameter(min=0., max=MAX_FUEL_DENSITY,       val=0.5*Tokamak.ne0)
-            self.nT         = Parameter(min=0., max=MAX_FUEL_DENSITY,       val=0.5*Tokamak.ne0)
+            self.nD         = Parameter(min=0., max=MAX_FUEL_DENSITY,       val=.5*Tokamak.ne0)
+            self.nT         = Parameter(min=0., max=MAX_FUEL_DENSITY,       val=.5*Tokamak.ne0)
             self.nHe        = Parameter(min=0., max=MAX_FUEL_DENSITY,       val=0.)
 
             # Injected ion densities
-            self.nD2        = Parameter(min=0., max=MAX_INJECTED_DENSITY,   val=7*Tokamak.ne0)
+            self.nD2        = Parameter(min=0., max=MAX_INJECTED_DENSITY,   val=5*Tokamak.ne0)
             self.alphaD2    = Parameter(min=-10,max=10,                     val=0.)
             self.nNe        = Parameter(min=0., max=MAX_INJECTED_DENSITY,   val=.08*Tokamak.ne0)
             self.alphaNe    = Parameter(min=-10,max=10,                     val=0.)
@@ -101,7 +103,7 @@ class DREAMSimulation(Simulation):
             self.T2         = Parameter(min=0., max=1.,                     val=.99)
 
             # Post TQ magnetic perturbation profile
-            self.dBB1       = Parameter(min=0., max=1e-3,                   val=1e-4)
+            self.dBB1       = Parameter(min=0., max=1e-3,                   val=4e-4)
             self.dBB2       = Parameter(min=0., max=1e2,                    val=0.)
 
 
@@ -142,7 +144,7 @@ class DREAMSimulation(Simulation):
             # nt = 1 + NT_IONIZ + NT_TQ + NT_CQ
             # assert len(self.t) == nt, print(nt, self.t.shape)
             # assert len(self.r) == NR, print(NR, self.r.shape, self.r)
-            # assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
+            assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
             # assert self.T_cold.shape == (nt, NR), print(self.T_cold.shape, (nt, NR))
 
         def getMaxRECurrent(self):
@@ -175,6 +177,7 @@ class DREAMSimulation(Simulation):
 
         self.ds = DREAMSettings()
 
+        self.ds.other.include('fluid')
         # Set solvers
         self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
         # self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_MKL)
@@ -196,6 +199,7 @@ class DREAMSimulation(Simulation):
         self.ds.collisions.collfreq_type        = Collisions.COLLFREQ_TYPE_PARTIALLY_SCREENED
         self.ds.collisions.bremsstrahlung_mode  = Collisions.BREMSSTRAHLUNG_MODE_STOPPING_POWER
         self.ds.collisions.lnlambda             = Collisions.LNLAMBDA_ENERGY_DEPENDENT
+        self.ds.collisions.pstar_mode = Collisions.PSTAR_MODE_COLLISIONAL
 
         # Add fuel
         if self.input.nH.val > 0:
@@ -211,6 +215,7 @@ class DREAMSimulation(Simulation):
         self.ds.eqsys.n_re.setDreicer(RE.DREICER_RATE_NEURAL_NETWORK)
         self.ds.eqsys.n_re.setAvalanche(RE.AVALANCHE_MODE_FLUID)
         #self.ds.eqsys.n_re.setHottail(RE.HOTTAIL_MODE_ANALYTIC_ALT_PC)
+
         self.ds.eqsys.n_re.setCompton(RE.COMPTON_RATE_ITER_DMS)          # <== LOOK INTO THIS
         if self.input.nT.val > 0:
             self.ds.eqsys.n_re.setTritium(True)
@@ -234,7 +239,13 @@ class DREAMSimulation(Simulation):
         # We need to access methods from within a DREAM output object
         self.ds.timestep.setTmax(1e-11)
         self.ds.timestep.setNt(1)
-        self.do = self._run(verbose=False)
+        out = self._getFileName('init_output', OUTPUT_DIR)
+        self.ds.output.setFilename(out)
+        self.do = self._run(out=out, verbose=False)
+        self.ds = DREAMSettings(self.ds)
+        self.ds.fromOutput(out, ignore=['n_i'])
+        self.ds.timestep.setNumberOfSaveSteps(200)
+        #
 
         # Set self-consistent electric field (initial condition is determined by the current density)
         self.ds.eqsys.E_field.setType(EField.TYPE_SELFCONSISTENT)
@@ -282,16 +293,12 @@ class DREAMSimulation(Simulation):
             self.ds.eqsys.n_i.addIon('Ne', Z=10, iontype=Ions.IONS_DYNAMIC, Z0=0, n=nNe, r=r)
 
 
-        self.ds.solver.setTolerance(reltol=1e-2)
-        self.ds.solver.setMaxIterations(maxiter=500)
-        self.ds.timestep.setTmax(TMAX_IONIZ)
-        self.ds.timestep.setNt(NT_IONIZ)
-
         out = self._getFileName('ioniz_output', OUTPUT_DIR)
         self.ds.output.setFilename(out)
         do = self._run(out=out)
 
         self.ds = DREAMSettings(self.ds)
+        self.ds.clearIgnore()
         self.ds.fromOutput(out)
         return do
 
@@ -305,8 +312,14 @@ class DREAMSimulation(Simulation):
         self.ds.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
 
         # Set exponential-decay temperature
-        t, r, T = Tokamak.getTemperatureEvolution(self.input.T1.val, self.input.T2.val, tmax=TMAX_TQ)#, nt=NT_TQ)
+        t, r, T = Tokamak.getTemperatureEvolution(self.input.T1.val, self.input.T2.val, tau0=TQ_DECAY_TIME, T_final=TQ_FINAL_TEMPERATURE, tmax=TMAX_TQ)#, nt=NT_TQ)
         self.ds.eqsys.T_cold.setPrescribedData(T, radius=r, times=t)
+
+        self.ds.solver.setTolerance(reltol=1e-2)
+        self.ds.solver.setMaxIterations(maxiter=500)
+        self.ds.timestep.setTmax(TMAX_IONIZ)
+        self.ds.timestep.setNt(NT_IONIZ)
+
 
         do1 = self._runInjectionIonization()
 
@@ -403,7 +416,7 @@ class DREAMSimulation(Simulation):
                     tmax = self.ds.timestep.tmax
                     nt = self.ds.timestep.nt
                     if ntmax is None:
-                        ntmax = 2**maxReruns * max(NT_IONIZ, NT_TQ, NT_CQ)
+                        ntmax = 2**self.maxReruns * max(NT_IONIZ, NT_TQ, NT_CQ)
                     if nt >= ntmax:
                         print(err)
                         print('ERROR : Skipping this simulation!')
