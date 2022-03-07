@@ -34,7 +34,6 @@ def join(dataStr: str, *dos: DREAMOutput, time=False, radius=False) -> np.ndarra
     t = 0
     q = np.array([])
     for i, do in enumerate(*dos):
-        if time:print('hh', i)
         obj = do
         for attr in dataStr.split('.'):
             if attr.endswith('()'):

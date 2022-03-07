@@ -18,10 +18,10 @@ except:
 
 
 # ITER parameters
-a  = 1.79    # minor radius (m)
-b  = 2.00    # minor radius of tokamak wall (m)
+a  = 2.#1.79    # minor radius (m)
+b  = 2.15#2.00    # minor radius of tokamak wall (m)
 B0 = 5.3     # toroidal magnetic field on-axis (T)
-R0 = 6.2     # major radius (m)
+R0 = 6#6.2     # major radius (m)
 Ip = 15e6    # Target plasma current (A)
 j0 = 1.69e6  # current density (A/m^2) (yielding a plasma current Ip=15 MA in a circular plasma)
 
@@ -31,7 +31,7 @@ J2 = .5
 
 # Simulation parameters
 ne0 = 1e20  # electron density (m^-3)
-t0  = 5e-4#1e-3  # xponential decay time (s)
+t0  = 1e-3#1e-3  # xponential decay time (s)
 T_initial = 2e4
 T_final = 50
 
