@@ -82,11 +82,11 @@ def visualizeTemperature(r, T, times=[0,-1], ax=None, show=False):
     for ti in times:
         ax.plot(r, T[ti,:], label=ti)
 
+    ax.legend('Timestep indices:')
     ax.set_xlabel('minor radius (m)')
-    ax.set_ylabel('Temperature (keV)')
+    ax.set_ylabel('temperature (keV)')
 
     if show:
-        plt.legend('Timestep indices:', ncol=3)
         plt.show()
 
     return ax
@@ -112,11 +112,11 @@ def visualizeTemperatureEvolution(t, T, radii=[0], ax=None, show=False):
     for ri in radii:
         ax.plot(t, T[:,ri], label=ri)
 
+    ax.legend(title='Radial node indices:')
     ax.set_xlabel('time (ms)')
     ax.set_ylabel('temperature (keV)')
 
     if show:
-        plt.legend()
         plt.show()
 
     return ax
@@ -144,6 +144,7 @@ def visualizeCurrents(t, I_ohm, I_re, I_tot, log=False, ax=None, show=False):
     ax.plot(t, I_re,  'b', label='REs')
     ax.plot(t, I_tot, 'k', label='total')
 
+    ax.legend(title='Currents:')
     ax.set_xlabel('time (ms)')
     ax.set_ylabel('current (MA)')
 
@@ -151,7 +152,6 @@ def visualizeCurrents(t, I_ohm, I_re, I_tot, log=False, ax=None, show=False):
         ax.set_yscale('log')
 
     if show:
-        plt.legend(title='Currents:')
         plt.show()
 
     return ax

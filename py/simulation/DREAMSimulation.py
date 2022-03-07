@@ -32,17 +32,17 @@ import DREAM.Settings.TransportSettings as Transport
 
 
 # Number of radial nodes
-NR = 20
+NR = 5
 
 # Number of time iterations in each step
 NT_IONIZ    = 1000
 NT_TQ       = 2000
-NT_CQ       = 2000
+NT_CQ       = 4000
 
 # Amount of time (s) in each step
-TMAX_TOT    = 1e-1
+TMAX_TOT    = 1.5e-1
 TMAX_IONIZ  = 1e-6
-TMAX_TQ     = Tokamak.t0 * 6
+TMAX_TQ     = Tokamak.t0 * 4
 
 
 
@@ -165,13 +165,19 @@ class DREAMSimulation(Simulation):
         """
         super().__init__(id=id, verbose=verbose, **inputs)
 
-        self.doubleIterations   = True
-        self.do = None
+        self.ds = None      # This will be updated for each subsequent simulation.
+        self.do = None      # We need access to do.grid.integrate()
+
+        self.handleCrash = True
+        self.maxReruns   = 3
+
+        ##### Generate the initialization simulation #####
+
         self.ds = DREAMSettings()
 
         # Set solvers
         self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
-        # self.ds1.solver.setLinearSolver(Solver.LINEAR_SOLVER_MKL)
+        # self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_MKL)
         self.ds.solver.setType(Solver.NONLINEAR)
         self.ds.solver.setMaxIterations(maxiter=500)
         self.ds.solver.tolerance.set(reltol=2e-6)
@@ -205,7 +211,7 @@ class DREAMSimulation(Simulation):
         self.ds.eqsys.n_re.setDreicer(RE.DREICER_RATE_NEURAL_NETWORK)
         self.ds.eqsys.n_re.setAvalanche(RE.AVALANCHE_MODE_FLUID)
         self.ds.eqsys.n_re.setHottail(RE.HOTTAIL_MODE_ANALYTIC_ALT_PC)
-        # self.ds1.eqsys.n_re.setCompton(RE.COMPTON_MODE_NEGLECT)          # <== LOOK INTO THIS
+        # ds.eqsys.n_re.setCompton(RE.COMPTON_MODE_NEGLECT)          # <== LOOK INTO THIS
         if self.input.nT.val > 0:
             self.ds.eqsys.n_re.setTritium(True)
 
@@ -213,7 +219,7 @@ class DREAMSimulation(Simulation):
         self.ds.eqsys.E_field.setPrescribedData(1e-4)
 
         # Set initial temperature profile
-        # self.ds.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
+        self.ds.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
         rT, T = Tokamak.getInitialTemperature(self.input.T1.val, self.input.T2.val)
         self.ds.eqsys.T_cold.setPrescribedData(T, radius=rT)
 
@@ -227,23 +233,31 @@ class DREAMSimulation(Simulation):
         # We need to access methods from within a DREAM output object
         self.ds.timestep.setTmax(1e-11)
         self.ds.timestep.setNt(1)
-        self.do = self._run()
+        self.do = self._run(verbose=False)
 
         # Set self-consistent electric field (initial condition is determined by the current density)
         self.ds.eqsys.E_field.setType(EField.TYPE_SELFCONSISTENT)
         self.ds.eqsys.E_field.setBoundaryCondition(EField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=0, R0=Tokamak.R0)
 
         # Set initial current density
-        rj, j = Tokamak.getInitialCurrentDensity(self.input.j1.val, self.input.j2.val, self.ds.radialgrid.nr)
+        rj, j = Tokamak.getInitialCurrentDensity(self.input.j1.val, self.input.j2.val, NR)
         self.ds.eqsys.j_ohm.setInitialProfile(j, radius=rj, Ip0=self.input.Ip0.val)
 
 
 
-    def run(self, doubleIterations=True):
+    def run(self, handleCrash=None):
         """
-        Runs the simulation and produce a single output.
+        Runs the simulation and return a single simulation Output object from
+        several DREAM output objects, which are joined during during initialization.
+
+        :param handleCrash:     If True, any crashed simulation are rerun in
+                                higher resolution in time, until some max number
+                                of iterations is reached.
         """
         assert self.output is None, 'Output object already exists!'
+
+        if handleCrash is not None:
+            self.handleCrash = handleCrash
 
         if EXP_DECAY:
             do1, do2, do3 = self._runExpDecayTQ()
@@ -277,7 +291,7 @@ class DREAMSimulation(Simulation):
         do = self._run(out=out)
 
         self.ds = DREAMSettings(self.ds)
-        self.ds.fromOutput('out1.h5')
+        self.ds.fromOutput(out)
         return do
 
 
@@ -307,7 +321,6 @@ class DREAMSimulation(Simulation):
         self.ds.fromOutput(out)
 
         ##### Post-TQ (self consistent temperature evolution) #####
-
 
         # Set CQ/post-TQ time stepper settings
         self.ds.timestep.setNt(NT_CQ)
@@ -370,10 +383,9 @@ class DREAMSimulation(Simulation):
 
 
 
-    def _run(self, out=None, verbose=None, doubleIterations=None, dreampyface=False, ntmax=None):
+    def _run(self, out=None, verbose=None, ntmax=None):
         """
-        Run simulation and rerun simulation with a doubled number of timesteps
-        if it crashes.
+        Run simulation and handle crashes.
         """
         do = None
         if verbose is None:
@@ -381,31 +393,38 @@ class DREAMSimulation(Simulation):
         else:
             quiet = (not verbose)
 
-        if doubleIterations is not None:
-            self.doubleIterations = doubleIterations
-
-        try:
-            if dreampyface:
+        global EXP_DECAY
+        if EXP_DECAY:
+            try:
+                do = runiface(self.ds, out, quiet=quiet)
+            except DREAMException as err:
+                if self.handleCrash:
+                    tmax = self.ds.timestep.tmax
+                    nt = self.ds.timestep.nt
+                    if ntmax is None:
+                        ntmax = 2**maxReruns * max(NT_IONIZ, NT_TQ, NT_CQ)
+                    if nt >= ntmax:
+                        print(err)
+                        print('ERROR : Skipping this simulation!')
+                    else:
+                        print(err)
+                        print(f'WARNING : Number of iterations is increased from {nt} to {2*nt}!')
+                        self.ds.timestep.setNt(2*nt)
+                        do = self._run(out=out, verbose=verbose, ntmax=ntmax)
+                else:
+                    raise err
+        else:
+            try:
+                import dreampyface
                 s = dreampyface.setup_simulation(self.ds)
                 do = s.run()
-            else:
-                do = runiface(self.ds, out, quiet=quiet)
-        except DREAMException as err:
-            if self.doubleIterations:
-                tmax = self.ds.timestep.tmax
-                nt = self.ds.timestep.nt
-                if ntmax is None:
-                    ntmax = 2**2 * max(NT_IONIZ, NT_TQ, NT_CQ)
-                if nt >= ntmax:
-                    print(err)
-                    print('ERROR : Skipping this simulation!')
-                else:
-                    print(err)
-                    print(f'WARNING : Number of iterations is increased from {nt} to {2*nt}!')
-                    self.ds.timestep.setNt(2*nt)
-                    do = self._run(out=out, verbose=verbose, doubleIterations=True, dreampyface=dreampyface)
-            else:
-                raise err
+
+            # Set to exponential decay in TQ if dreampyface doesn't exist
+            except ModuleNotFoundError as err:
+                EXP_DECAY = True
+                print('ERROR: Python module dreampyface not found. Switchin to exp-decay...')
+                do = self._run(out=out, verbose=verbose, ntmax=ntmax)
+
         return do
 
     def _getFileName(self, io, dir):
@@ -435,13 +454,14 @@ def main():
             print('ERROR: Python module dreampyface not found. Switchin to exp-decay...')
 
     s = DREAMSimulation()
-    s.run(doubleIterations=False)
+    s.run(handleCrash=False)
 
     # analyze output data
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 6))
-    s.output.visualizeCurrents(log=True, ax=ax1)
+    s.output.visualizeCurrents(ax=ax1)
     s.output.visualizeTemperature(ax=ax2)
     s.output.visualizeTemperatureEvolution(ax=ax3)
+    plt.legend()
     plt.show()
     return 0
 
