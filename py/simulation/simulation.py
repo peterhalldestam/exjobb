@@ -1,24 +1,6 @@
 import numpy as np
 from dataclasses import dataclass
 
-@dataclass
-class Parameter:
-    """
-    Input parameter going into the simulation.
-    """
-    val: float
-    min: float
-    max: float
-
-    def __post_init__(self):
-        if not self.min < self.max:
-            raise AttributeError('The maximum must be strictly larger than the minimum.')
-        # if self.val < self.min or self.max < self.val:
-        #     raise AttributeError(f'The value {self.val} is not within the domain interval.')
-
-    def inDomain(self):
-        return (self.val < self.max and self.min < self.val)
-
 class Simulation:
 
     @dataclass
@@ -26,20 +8,6 @@ class Simulation:
         """
         Input parameters for simulation object.
         """
-        def __post_init__(self):
-            for field in self.__dataclass_fields__.keys():
-                if not isinstance(getattr(self, field), Parameter):
-                    raise TypeError('Input object expected only Parameter attributes')
-
-        def inDomain(self) -> bool:
-            """
-            Checks if each current input parameter is within its domain interval.
-            """
-            for field in self.__dataclass_fields__.keys():
-                parameter = getattr(self, field)
-                if parameter.inDomain():
-                    return False
-            return True
 
         def getArray():
             pass

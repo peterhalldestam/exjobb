@@ -8,12 +8,10 @@ import sys, os, pathlib
 import numpy as np
 
 sys.path.append(os.path.abspath('..'))
-from simulation.DREAMSimulation import DREAMSimulation
-from simulation.simulation import Parameter
+from simulation.DREAMSimulation import DREAMSimulation, OUTPUT_DIR
 
 NSIM = 3
-NEON_DENSITIES = [x * 1e20 for x in range(1, NSIM)]
-OUTPUT_DIR = 'example_outputs/'
+NEON_DENSITIES = [x * 1e18 for x in range(1, NSIM+1)]
 
 def main():
 
@@ -29,15 +27,14 @@ def main():
     if not paths:
         for i, n in enumerate(NEON_DENSITIES):
 
-            # this way of entering parameters is temporary....
-            tmp = Parameter(0., np.inf, n)
+            print(f'Running simulation #{i+1}/{NSIM}')
 
             ###### IMPORTANT PART ######
             # Create simulation with an ID and set the injected neon density
-            s = DREAMSimulation(id=f'{OUTPUT_DIR}out{i}', nNe=tmp)    # produces 3 files per simulation
+            s = DREAMSimulation(id=f'out{i}', verbose=False, nNe=n)    # produces 3 files per simulation
 
             # Run simulation
-            s.run(handleCrash=False)
+            s.run(handleCrash=True)
 
             # Access relevant output data
             outputs.append(s.output)
@@ -48,12 +45,12 @@ def main():
     else:
         assert (len(paths) == 3 * NSIM), f'remove all files in {OUTPUT_DIR} and rerun'
         for i, n in enumerate(NEON_DENSITIES):
-            dos = [f'{OUTPUT_DIR}out{i}_{j}.h5' for j in (1, 2, 3)]
+            dos = [f'out{i}_{j}.h5' for j in (1, 2, 3)]
             output = DREAMSimulation.Output(*dos)
             outputs.append(output)
 
-    for output, n in zip(outputs, NEON_DENSITIES):
-        print(f'nNe = {n}\t tCQ = {out.tCQ}\t max(I_re) = {out.getCQTime()}')
+    for out, n in zip(outputs, NEON_DENSITIES):
+        print(f'nNe = {n}\t tCQ = {out.tCQ}\t max(I_re) = {out.getMaxRECurrent()}')
 
     return 0
 
