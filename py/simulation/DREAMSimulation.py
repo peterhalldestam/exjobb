@@ -132,7 +132,7 @@ class DREAMSimulation(Simulation):
 
         def _getTime(self, x):
             """
-            Return the first time the Ohmic current is a fraction x of its
+            Returns the first time the Ohmic current is a fraction x of its
             maximum value (should be t ~ 0).
             """
             assert 0 < x < 1
@@ -142,6 +142,10 @@ class DREAMSimulation(Simulation):
                     return t
 
         def getCQTime(self):
+            """
+            Tries to calculate the current quench time and returns it. If unable
+            it will return infinity.
+            """
             t80 = self._getTime(.8)
             t20 = self._getTime(.2)
             if t80 is not None and t20 is not None:
@@ -150,15 +154,27 @@ class DREAMSimulation(Simulation):
                 return np.inf
 
         def getMaxRECurrent(self):
+            """
+            Returns the maximum runaway electron current.
+            """
             return self.I_re.max()
 
         def visualizeCurrents(self, log=False, ax=None, show=False):
+            """
+            Plot the Ohmic, RE and total currents.
+            """
             return utils.visualizeCurrents(self.t, self.I_ohm, self.I_re, self.I_tot, log=log, ax=ax, show=show)
 
         def visualizeTemperature(self, times=[0,-1], ax=None, show=False):
+            """
+            Plot the temperature profile at selected timesteps.
+            """
             return utils.visualizeTemperature(self.r, self.T_cold, times=times, ax=ax, show=show)
 
         def visualizeTemperatureEvolution(self, radii=[0], ax=None, show=False):
+            """
+            Plot the temperature evolution at selected radii.
+            """
             return utils.visualizeTemperatureEvolution(self.t, self.T_cold, radii=radii, ax=ax, show=show)
 
     ############## DISRUPTION SIMULATION SETUP ##############
@@ -214,7 +230,7 @@ class DREAMSimulation(Simulation):
 
     def _setInitialProfiles(self):
         """
-        Initialize profiles from user input or from baseline.
+        Set initial profiles from input parameters.
         """
         # Add fuel
         if self.input.nH:
@@ -259,9 +275,10 @@ class DREAMSimulation(Simulation):
 
     def _runInjectionIonization(self):
         """
-
+        Injects neutral gas and run a short ionization simulation to allow them
+        to settle.
         """
-        # Add injected ions
+        # Add injected materials
         if self.input.nD2:
             r, n = utils.getDensityProfile(self.do, self.input.nD2, self.input.aD2)
             self.ds.eqsys.n_i.addIon('D2', Z=1, iontype=Ions.IONS_DYNAMIC, Z0=0, n=n, r=r,
@@ -270,7 +287,6 @@ class DREAMSimulation(Simulation):
         if self.input.nNe:
             r, n = utils.getDensityProfile(self.do, self.input.nNe, self.input.aNe)
             self.ds.eqsys.n_i.addIon('Ne', Z=10, iontype=Ions.IONS_DYNAMIC, Z0=0, n=n, r=r)
-
 
         out = self._getFileName('1', OUTPUT_DIR)
         self.ds.output.setFilename(out)
