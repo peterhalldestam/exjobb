@@ -173,8 +173,8 @@ def getCQTime(t, I_ohm, tol=5e-2):
     elif np.abs(I_ohm[i20]/I_ohm[0] - .2) > tol:
 	    warnings.warn(f'\nData point at 20% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.')
 
-    t80 = scp.optimize.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .8, x0=t[i80])
-    t20 = scp.optimize.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .2, x0=t[i20])
+    t80 = scp.optimize.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .8, x0=t[i80])[0]
+    t20 = scp.optimize.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .2, x0=t[i20])[0]
 
     return t20, t80, (t20 - t80) / .6
 
