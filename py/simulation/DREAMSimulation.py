@@ -116,11 +116,6 @@ class DREAMSimulation(Simulation):
         I_tot:  np.ndarray  # total current
         T_cold: np.ndarray  # cold electron temperature
 
-        # Derived timing quantities
-        tCQ: float  # current quench time, tCQ(t20, t80)
-        t20: float  # I_ohm(t20) / I_ohm(0) = 20%
-        t80: float  # I_ohm(t80) / I_ohm(0) = 80%
-
         def __init__(self, *dos):
             """
             Constructor. Joins data from the provided DREAM output objects.
@@ -170,7 +165,7 @@ class DREAMSimulation(Simulation):
 
     def __init__(self, id='out', verbose=True, **inputs):
         """
-        Constructor. Core simulation settings.
+        Constructor. Core simulation settings. No input parameters are used here.
         """
         super().__init__(id=id, verbose=verbose, **inputs)
 
