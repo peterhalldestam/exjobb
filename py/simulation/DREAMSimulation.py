@@ -170,7 +170,7 @@ class DREAMSimulation(Simulation):
 
     def __init__(self, id='out', verbose=True, **inputs):
         """
-        Set input from baseline or from any user provided input parameters.
+        Constructor. Core simulation settings.
         """
         super().__init__(id=id, verbose=verbose, **inputs)
 
@@ -208,8 +208,7 @@ class DREAMSimulation(Simulation):
         self.ds.eqsys.n_re.setAvalanche(RE.AVALANCHE_MODE_FLUID)
         self.ds.eqsys.n_re.setHottail(RE.HOTTAIL_MODE_ANALYTIC_ALT_PC)
         self.ds.eqsys.n_re.setCompton(RE.COMPTON_RATE_ITER_DMS)
-        if self.input.nT > 0:
-            self.ds.eqsys.n_re.setTritium(True)
+        # REs due to tritium decay is enabled later on if nT > 0
 
         # Use Sauter formula for conductivity
         self.ds.eqsys.j_ohm.setConductivityMode(JOhm.CONDUCTIVITY_MODE_SAUTER_COLLISIONAL)
@@ -229,6 +228,7 @@ class DREAMSimulation(Simulation):
             self.ds.eqsys.n_i.addIon('D', n=self.input.nD, Z=1, Z0=1, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
         if self.input.nT:
             self.ds.eqsys.n_i.addIon('T', n=self.input.nT, Z=1, Z0=1, tritium=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+            self.ds.eqsys.n_re.setTritium(True)
         if self.input.nHe:
             raise NotImplementedError('Helium is not yet implemented...')
 
@@ -475,18 +475,12 @@ def main():
             print('ERROR: Python module dreampyface not found. Switchin to exp-decay...')
 
     s = DREAMSimulation()
+    s.configureInput(nNe=s.input.nNe / 2)
     s.run(handleCrash=True)
 
-    print(s.output.getCQTime())
+    print('tCQ =', s.output.getCQTime(), 's')
     s.output.visualizeCurrents(show=True)
 
-    ## analyze output data
-    # fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(20, 6))
-    # s.output.visualizeCurrents(ax=ax1)
-    # s.output.visualizeTemperature(ax=ax2)
-    # s.output.visualizeTemperatureEvolution(ax=ax3)
-    # plt.legend()
-    # plt.show()
     return 0
 
 if __name__ == '__main__':

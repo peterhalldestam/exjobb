@@ -26,21 +26,24 @@ class Simulation:
         """
         Constructor.
         """
+        self.configureInput(**inputs)
+
         self.id = id
         self.verbose = verbose
         self.objFun = None
 
-        # Set input from any user provided input parameters.
+        self.output = None
+        self.objFun = None
+
+    def configureInput(self, **inputs):
+        """
+        Sets input from any user provided input parameters.
+        """
         try:
             self.input = self.Input(**inputs)
         except TypeError as err:
             print(f'Provided inputs must exist in {self.Input().__dataclass_fields__.keys()}')
             raise err
-
-        self.output = None
-        self.objFun = None
-
-
 
 
     def run(self, doubleIterations=None):
