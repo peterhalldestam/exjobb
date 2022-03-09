@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 sys.path.append(os.path.abspath('..'))
 import utils
 import tokamaks.ITER as Tokamak
-from simulation.simulation import Simulation
+from simulation import Simulation
 
 try:
     import DREAM
@@ -131,14 +131,28 @@ class DREAMSimulation(Simulation):
             self.I_ohm  = utils.join('eqsys.j_ohm.current()', dos)
             self.I_tot  = utils.join('eqsys.j_tot.current()', dos)
             self.T_cold = utils.join('eqsys.T_cold.data', dos)
-            self.t20, self.t80, self.tCQ = utils.getCQTime(self.t, self.I_ohm)
 
-            # # (for debug, doesn't work if DREAM crashes just once in _run())
-            # nt = 1 + NT_IONIZ + NT_TQ + NT_CQ
-            # assert len(self.t) == nt, print(nt, self.t.shape)
-            # assert len(self.r) == NR, print(NR, self.r.shape, self.r)
+            assert len(self.r) == NR
             assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
-            # assert self.T_cold.shape == (nt, NR), print(self.T_cold.shape, (nt, NR))
+
+        def _getTime(self, x):
+            """
+            Return the first time the Ohmic current is a fraction x of its
+            maximum value (should be t ~ 0).
+            """
+            assert 0 < x < 1
+            I0 = self.I_ohm.max()
+            for t, I in zip(self.t, self.I_ohm):
+                if I <= x * I0:
+                    return t
+
+        def getCQTime(self):
+            t80 = self._getTime(.8)
+            t20 = self._getTime(.2)
+            if t80 is not None and t20 is not None:
+                return (t20 - t80) / .6
+            else:
+                return np.inf
 
         def getMaxRECurrent(self):
             return self.I_re.max()
@@ -463,6 +477,7 @@ def main():
     s = DREAMSimulation()
     s.run(handleCrash=True)
 
+    print(s.output.getCQTime())
     s.output.visualizeCurrents(show=True)
 
     ## analyze output data

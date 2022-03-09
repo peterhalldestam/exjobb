@@ -156,29 +156,6 @@ def visualizeCurrents(t, I_ohm, I_re, I_tot, log=False, ax=None, show=False):
 
     return ax
 
-def getCQTime(t, I_ohm, tol=5e-2):
-    """
-    Calculates current quench time through interpolation.
-
-    :param t:       Simulation time.
-    :param I_ohm:   Ohmic current.
-    :param tol:     Tolerance value.
-
-	"""
-    i80 = np.argmin(np.abs(I_ohm/I_ohm[0] - .8))
-    i20 = np.argmin(np.abs(I_ohm/I_ohm[0] - .2))
-
-    if np.abs(I_ohm[i80]/I_ohm[0] - .8) > tol:
-	    warnings.warn(f'\nData point at 80% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.')
-    elif np.abs(I_ohm[i20]/I_ohm[0] - .2) > tol:
-	    warnings.warn(f'\nData point at 20% amplitude was not found within a {tol*100}% margin, accuracy of interpolated answer may be affected.')
-
-    t80 = scp.optimize.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .8, x0=t[i80])[0]
-    t20 = scp.optimize.fsolve(lambda x: np.interp(x, t, I_ohm)/I_ohm[0] - .2, x0=t[i20])[0]
-
-    return t20, t80, (t20 - t80) / .6
-
-
 def getQuadraticMagneticPerturbation(ds, dBB0, dBB1):
     """
     Returns a quadratic profile for the magnetic pertubation, given the
