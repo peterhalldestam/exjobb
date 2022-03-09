@@ -7,8 +7,10 @@ distributed in space. / Peter
 import sys, os, pathlib
 import numpy as np
 
+
 sys.path.append(os.path.abspath('..'))
 from simulation.DREAMSimulation import DREAMSimulation, OUTPUT_DIR
+from DREAM import DREAMOutput
 
 NSIM = 3
 NEON_DENSITIES = [x * 1e18 for x in range(1, NSIM+1)]
@@ -45,13 +47,13 @@ def main():
     else:
         assert (len(paths) == 3 * NSIM), f'remove all files in {OUTPUT_DIR} and rerun'
         for i, n in enumerate(NEON_DENSITIES):
-            dos = [f'out{i}_{j}.h5' for j in (1, 2, 3)]
+            dos = [DREAMOutput(f'{OUTPUT_DIR}out{i}_{j}.h5') for j in (1, 2, 3)]
             output = DREAMSimulation.Output(*dos)
             outputs.append(output)
 
     for out, n in zip(outputs, NEON_DENSITIES):
         print(f'nNe = {n}\t tCQ = {out.tCQ}\t max(I_re) = {out.getMaxRECurrent()}')
-
+        
     return 0
 
 if __name__ == '__main__':
