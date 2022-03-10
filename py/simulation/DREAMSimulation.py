@@ -306,7 +306,7 @@ class DREAMSimulation(Simulation):
 
         # Enable self consistent temperature evolution
         self.ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
-        self.ds.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
+        self.ds.eqsys.T_cold.setRecombinationRadiation(True)
 
         # tmax = self.ds.timestep.tmax
         # nt = self.ds.timestep.nt
