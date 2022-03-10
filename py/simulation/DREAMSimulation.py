@@ -34,10 +34,10 @@ import DREAM.Settings.TransportSettings as Transport
 REMOVE_FILES = True
 
 # Number of radial nodes
-NR = 5
+NR = 20
 
 # Number of time iterations in each step
-NT_IONIZ    = 1000
+NT_IONIZ    = 2000
 NT_TQ       = 3000
 NT_CQ       = 4000
 
