@@ -31,6 +31,7 @@ import DREAM.Settings.Equations.HotElectronDistribution as FHot
 import DREAM.Settings.Solver as Solver
 import DREAM.Settings.TransportSettings as Transport
 
+REMOVE_FILES = True
 
 # Number of radial nodes
 NR = 5
@@ -491,6 +492,11 @@ def main():
 
     print('tCQ =', s.output.getCQTime(), 's')
     s.output.visualizeCurrents(show=True)
+
+    if REMOVE_FILES:
+        paths = [OUTPUT_DIR + path for path in os.listdir(OUTPUT_DIR)]
+        for fp in paths:
+            os.remove(fp)
 
     return 0
 
