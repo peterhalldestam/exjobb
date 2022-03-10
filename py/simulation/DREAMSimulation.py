@@ -82,7 +82,7 @@ class DREAMSimulation(Simulation):
         nHe:    float = 0.
 
         # Injected ion densities & profiles
-        nD2:    float = 5 * Tokamak.ne0
+        nD2:    float = 7 * Tokamak.ne0
         nNe:    float = .08 * Tokamak.ne0
         aD2:    float = 0.
         aNe:    float = 0.
@@ -266,7 +266,7 @@ class DREAMSimulation(Simulation):
 
         # Set self-consistent electric field (initial condition is determined by the current density)
         self.ds.eqsys.E_field.setType(EField.TYPE_SELFCONSISTENT)
-        self.ds.eqsys.E_field.setBoundaryCondition(EField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=2, R0=Tokamak.R0)
+        self.ds.eqsys.E_field.setBoundaryCondition(EField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=0, R0=Tokamak.R0)
         self.ds.solver.tolerance.set('psi_wall', abstol=1e-6)
 
         # Set initial current density
@@ -308,25 +308,25 @@ class DREAMSimulation(Simulation):
         self.ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
         self.ds.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
 
-        tmax = self.ds.timestep.tmax
-        nt = self.ds.timestep.nt
+        # tmax = self.ds.timestep.tmax
+        # nt = self.ds.timestep.nt
+        #
+        # # Enable magnetic pertubations that will allow for radial transport
+        # t = np.linspace(0, tmax, nt)
 
-        # Enable magnetic pertubations that will allow for radial transport
-        t = np.linspace(0, tmax, nt)
-
-        self.ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-        self.ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=np.tile(dBB, (nt, 1)), r=r, t=t)
+        # self.ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
+        # self.ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=np.tile(dBB, (nt, 1)), r=r, t=t)
 
         # Rechester-Rosenbluth diffusion operator
-        Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
-        Drr = np.tile(Drr, (nt,1,1,1))
-
-        self.ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
-        self.ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
-
-        # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
-        self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
-        self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+        # Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
+        # Drr = np.tile(Drr, (nt,1,1,1))
+        #
+        # self.ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
+        # self.ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
+        #
+        # # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
+        # self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
+        # self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
 
 
     def _runExpDecayTQ(self):
@@ -484,7 +484,7 @@ def main():
             import dreampyface
         except ModuleNotFoundError as err:
             EXP_DECAY = True
-            print('ERROR: Python module dreampyface not found. Switchin to exp-decay...')
+            print('ERROR: Python module dreampyface not found. Switching to exp-decay...')
 
     s = DREAMSimulation()
     s.configureInput(nNe=s.input.nNe / 2)
