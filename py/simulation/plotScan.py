@@ -5,12 +5,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-LOG_PATH = 'scan.log'
+LOG_PATH = 'scan1.log'
 
+CURRENT_QUENCH_TIME_MAX = 150e-3
+CURRENT_QUENCH_TIME_MIN = 50e-3
 
 def main():
 
-    nNe, nD, tCQ, I_re = [], [], [], []
+    nNe, nD2, tCQ, I_re = [], [], [], []
 
     # Set up data log
     if os.path.exists(LOG_PATH):
@@ -19,23 +21,24 @@ def main():
                 data = line.rstrip().replace(',', '').split()[-5:]
 
                 nNe.append(float(data[0]))
-                nD.append(float(data[1]))
-
-                tCQ.append(np.inf if data[3] == 'inf' else float(data[3]))
+                nD2.append(float(data[1]))
                 I_re.append(float(data[4]) * 1e-6)
+                tCQ.append(np.inf if data[3] == 'inf' else float(data[3]))
 
 
     fig, ax = plt.subplots()
-    ax.tricontour(nD, nNe, I_re, levels=14, linewidths=0.5, colors='k')
-    cntr2 = ax.tricontourf(nD, nNe, I_re, levels=14, cmap="RdBu_r")
-    fig.colorbar(cntr2, ax=ax)
-    for t, n1, n2 in zip(tCQ, nD, nNe):
-        if not np.isinf(t):
-            ax.plot(n1, n2, 'ko', ms=3)
-# ax2.set(xlim=(-2, 2), ylim=(-2, 2))
-# ax2.set_title('tricontour (%d points)' % npts)
+    ax.tricontour(nD2, nNe, I_re, levels=14, linewidths=0.5, colors='k')
 
-# plt.subplots_adjust(hspace=0.5)
+    ax.tricontour(nD2, nNe, I_re, levels=3, linewidths=2, colors='k', linestyles=['dashed', 'dotted'])
+
+    cntr2 = ax.tricontourf(nD2, nNe, I_re, levels=14, cmap="RdBu_r")
+    fig.colorbar(cntr2, ax=ax)
+
+    plt.legend([f'{CURRENT_QUENCH_TIME_MAX * 1e3} ms (dotted)', f'{CURRENT_QUENCH_TIME_MIN * 1e3} ms (dashed)'], title='CQ time')
+
+    ax.set_ylabel(r'$n_{Ne}$ [$10^{20}$ m$^{-3}$]')
+    ax.set_xlabel(r'$n_{D}$ [$10^{20}$ m$^{-3}$]')
+
     ax.set_yscale('log')
     ax.set_xscale('log')
     plt.show()

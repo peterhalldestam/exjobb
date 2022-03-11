@@ -2,6 +2,8 @@
 
 import sys, os
 import pathlib
+import multiprocessing
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 from dataclasses import dataclass, field
@@ -34,12 +36,12 @@ import DREAM.Settings.TransportSettings as Transport
 REMOVE_FILES = True
 
 # Number of radial nodes
-NR = 20
+NR = 2
 
 # Number of time iterations in each step
-NT_IONIZ    = 2000
-NT_TQ       = 3000
-NT_CQ       = 4000
+NT_IONIZ    = 200
+NT_TQ       = 300
+NT_CQ       = 400
 
 # Amount of time (s) in each step
 TMAX_TOT    = 2e-1
@@ -406,7 +408,8 @@ class DREAMSimulation(Simulation):
         global EXP_DECAY
         if EXP_DECAY:
             try:
-                do = runiface(self.ds, out, quiet=quiet)
+                do = super()._run(lambda: runiface(self.ds, out, quiet=quiet))
+                # do = runiface(self.ds, out, quiet=quiet)
             except DREAMException as err:
                 if self.handleCrash:
                     tmax = self.ds.timestep.tmax
