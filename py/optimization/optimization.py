@@ -6,7 +6,7 @@ from dataclasses import dataclass
 # from . import simulation
 
 sys.path.append(os.path.abspath('..'))
-from simulation.simulation import Simulation
+from simulation import Simulation
 
 class Optimization:
 

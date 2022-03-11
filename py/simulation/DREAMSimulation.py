@@ -38,8 +38,8 @@ NR = 5
 
 # Number of time iterations in each step
 NT_IONIZ    = 1000
-NT_TQ       = 3000
-NT_CQ       = 4000
+NT_TQ       = 6000
+NT_CQ       = 8000
 
 # Amount of time (s) in each step
 TMAX_TOT    = 2e-1
@@ -98,7 +98,7 @@ class DREAMSimulation(Simulation):
         T2:     float = .99
 
         # Post TQ magnetic perturbation profile
-        dBB1:   float = 4e-4
+        dBB1:   float = 0.#4e-4
         dBB2:   float = 0.
 
     @dataclass(init=False)
@@ -152,7 +152,7 @@ class DREAMSimulation(Simulation):
             if t80 is not None and t20 is not None:
                 return (t20 - t80) / .6
             else:
-                return np.inf
+                return 1.#np.inf
 
         def getMaxRECurrent(self):
             """
@@ -197,12 +197,13 @@ class DREAMSimulation(Simulation):
         self.ds.other.include('fluid')
 
         # Set solver settings
-        self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
+        self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_MKL)
         self.ds.solver.setType(Solver.NONLINEAR)
         self.ds.solver.setMaxIterations(maxiter=500)
         self.ds.solver.tolerance.set(reltol=2e-6)
         self.ds.solver.tolerance.set(unknown='n_re', reltol=2e-6, abstol=1e5)
         self.ds.solver.tolerance.set(unknown='j_re', reltol=2e-6, abstol=1e-5) # j ~ e*c*n_e ~ n_e*1e-10 ?
+        self.ds.other.include(['fluid', 'scalar'])
 
         # Disable kinetic grids (we run purely fluid simulations)
         self.ds.hottailgrid.setEnabled(False)
@@ -341,7 +342,7 @@ class DREAMSimulation(Simulation):
         t, r, T = Tokamak.getTemperatureEvolution(self.input.T1, self.input.T2, tau0=TQ_DECAY_TIME, T_final=TQ_FINAL_TEMPERATURE, tmax=TMAX_TQ)#, nt=NT_TQ)
         self.ds.eqsys.T_cold.setPrescribedData(T, radius=r, times=t)
 
-        self.ds.solver.setTolerance(reltol=1e-2)
+        self.ds.solver.tolerance.set(reltol=1e-2)
         self.ds.solver.setMaxIterations(maxiter=500)
         self.ds.timestep.setTmax(TMAX_IONIZ)
         self.ds.timestep.setNt(NT_IONIZ)
