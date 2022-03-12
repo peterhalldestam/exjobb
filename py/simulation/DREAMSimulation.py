@@ -36,23 +36,26 @@ REMOVE_FILES = True
 # Number of radial nodes
 NR = 20
 
-# Number of time iterations in each step
-NT_IONIZ    = 2000
-NT_TQ       = 3000
-NT_CQ       = 4000
-
-# Amount of time (s) in each step
+# Maximum simulation time
 TMAX_TOT    = 2e-1
+
+# Thermal quench modes
+TQ_EXP_DECAY    = 1
+TQ_PERTURB      = 2
+
+# (TQ) Exponential decay settings
 TMAX_IONIZ  = 1e-6
 TMAX_TQ     = Tokamak.t0 * 8
+NT_IONIZ    = 2000
+NT_TQ       = 6000
+NT_CQ       = 8000
 
-
-
-
-# thermal quench settings
-EXP_DECAY = True
+# (TQ) IniMagnetic perturbation
 TQ_DECAY_TIME = Tokamak.t0
 TQ_FINAL_TEMPERATURE = Tokamak.T_final
+
+
+
 TQ_INITIAL_dBB0 = 1.5e-3
 
 SETTINGS_DIR    = 'settings/'
@@ -306,7 +309,7 @@ class DREAMSimulation(Simulation):
 
         # Enable self consistent temperature evolution
         self.ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
-        self.ds.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
+        self.ds.eqsys.T_cold.setRecombinationRadiation(False)
 
         # tmax = self.ds.timestep.tmax
         # nt = self.ds.timestep.nt
@@ -341,7 +344,7 @@ class DREAMSimulation(Simulation):
         t, r, T = Tokamak.getTemperatureEvolution(self.input.T1, self.input.T2, tau0=TQ_DECAY_TIME, T_final=TQ_FINAL_TEMPERATURE, tmax=TMAX_TQ)#, nt=NT_TQ)
         self.ds.eqsys.T_cold.setPrescribedData(T, radius=r, times=t)
 
-        self.ds.solver.setTolerance(reltol=1e-2)
+        self.ds.solver.tolerance.set(reltol=1e-2)
         self.ds.solver.setMaxIterations(maxiter=500)
         self.ds.timestep.setTmax(TMAX_IONIZ)
         self.ds.timestep.setNt(NT_IONIZ)
@@ -385,8 +388,16 @@ class DREAMSimulation(Simulation):
         r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, TQ_INITIAL_dBB0, -1/Tokamak.a**2)
         self._setSvenssonTransport(dBB, r)
 
-        # ds1.timestep.setTerminationFunction(lambda s: terminate(s, TSTOP))
-        # self.run(dreampyface=True)
+        # Set TQ+CQ time stepper settings
+        self.ds.timestep.setNt(NT_CQ)
+        self.ds.timestep.setTmax(TMAX_TOT - TMAX_TQ - TMAX_IONIZ)
+
+        self.ds.timestep.setTerminationFunction(lambda s: terminate(s, TSTOP))
+
+        # Run thermal quench
+        out = self._getFileName('2', OUTPUT_DIR)
+        self.ds.output.setFilename(out)
+        self._run(out=out)
 
         # self.ds = DREAMSettings(self.ds1)
         #...

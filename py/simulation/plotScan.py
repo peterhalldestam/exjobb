@@ -5,12 +5,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-LOG_PATH = 'scan.log'
+
+SHOW_POINTS = True
+LOG_PATH = 'scan2.log'
 
 
 def main():
 
-    nNe, nD, tCQ, I_re = [], [], [], []
+    nD, nNe, tCQ, I_re = [], [], [], []
 
     # Set up data log
     if os.path.exists(LOG_PATH):
@@ -26,16 +28,35 @@ def main():
 
 
     fig, ax = plt.subplots()
+
     ax.tricontour(nD, nNe, I_re, levels=14, linewidths=0.5, colors='k')
     cntr2 = ax.tricontourf(nD, nNe, I_re, levels=14, cmap="RdBu_r")
     fig.colorbar(cntr2, ax=ax)
-    for t, n1, n2 in zip(tCQ, nD, nNe):
-        if not np.isinf(t):
-            ax.plot(n1, n2, 'ko', ms=3)
-# ax2.set(xlim=(-2, 2), ylim=(-2, 2))
-# ax2.set_title('tricontour (%d points)' % npts)
 
-# plt.subplots_adjust(hspace=0.5)
+
+
+    yesCQ = np.isfinite(tCQ)
+
+    nD_, nNe_, tCQ_ = [], [], []
+    for t, n1, n2 in zip(tCQ, nD, nNe):
+        if np.isfinite(t):
+            nD_.append(n1)
+            nNe_.append(n2)
+            tCQ_.append(t)
+
+    print(nD_, nNe_, tCQ_)
+    ax.tricontour(nD_, nNe_, tCQ_, levels=[50e-3, 150e-3], linewidths=3, colors='k')
+
+    if SHOW_POINTS:
+        for t, n1, n2 in zip(tCQ, nD, nNe):
+            if np.isinf(t):
+                pass
+                # ax.plot(n1, n2, 'ko', ms=3)
+            elif :
+                ax.plot(n1, n2, 'ko', ms=2, alpha=.5)
+
+
+
     ax.set_yscale('log')
     ax.set_xscale('log')
     plt.show()

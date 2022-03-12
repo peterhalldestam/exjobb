@@ -10,13 +10,18 @@ from DREAM import DREAMOutput
 from DREAMSimulation import DREAMSimulation
 
 OUTPUT_DIR = 'outputs/'
-LOG_PATH = 'scan.log'
+LOG_PATH = 'scan2.log'
+
 
 N_NEON      = 10
 N_DEUTERIUM = 10
 
-NEON_DENSITIES      = [n * 1e20 for n in np.logspace(-3, -1, N_NEON)]
-DEUTERIUM_DENSITIES = [n * 1e20 for n in np.logspace(0, 2, N_DEUTERIUM)]
+# log10
+MIN_DEUTERIUM, MAX_DEUTERIUM    = 18, 22 + np.log10(1.6)
+MIN_NEON, MAX_NEON              = 15, 18
+
+DEUTERIUM_DENSITIES = np.logspace(MIN_DEUTERIUM, MAX_DEUTERIUM, N_DEUTERIUM)
+NEON_DENSITIES      = np.logspace(MIN_NEON, MAX_NEON, N_NEON)
 
 def removeOutputFiles():
     """
@@ -44,7 +49,7 @@ def main():
         for iD, nD in enumerate(DEUTERIUM_DENSITIES):
 
             i = iNe * N_DEUTERIUM + iD
-            print(f'Running simulation {i+1}/{N_NEON * N_DEUTERIUM}, nNe={nNe}, nD2={nD}')
+            print(f'Running simulation {i+1}/{N_NEON * N_DEUTERIUM}')
 
             s = DREAMSimulation(verbose=False)
             s.configureInput(nNe=nNe, nD2=nD)
