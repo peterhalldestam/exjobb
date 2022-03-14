@@ -433,7 +433,7 @@ class DREAMSimulation(Simulation):
         self.ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
         self.ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=np.tile(dBB, (nt, 1)), r=r, t=t)
 
-        Rechester-Rosenbluth diffusion operator
+        # Rechester-Rosenbluth diffusion operator
         Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
         Drr = np.tile(Drr, (nt,1,1,1))
 
@@ -513,7 +513,7 @@ class DREAMSimulation(Simulation):
 def main():
 
 
-    s = DREAMSimulation(mode=TQ_PERTURB)
+    s = DREAMSimulation(mode=TQ_EXP_DECAY)
     s.configureInput()
     s.run(handleCrash=False)
 
