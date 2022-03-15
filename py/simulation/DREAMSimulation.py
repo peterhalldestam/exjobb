@@ -474,6 +474,12 @@ class DREAMSimulation(Simulation):
         else:
             self._runPerturbTQ()
 
+
+        if REMOVE_FILES:
+            paths = [OUTPUT_DIR + path for path in os.listdir(OUTPUT_DIR)]
+            for fp in paths:
+                os.remove(fp)
+
         return 0
 
 def main():
