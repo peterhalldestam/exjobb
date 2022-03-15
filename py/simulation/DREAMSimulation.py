@@ -13,8 +13,15 @@ from simulation import Simulation
 
 try:
     import dreampyface
-except ModuleNotFoundError as err:
-    print('ERROR: Python module dreampyface not found. Cannot run TQ_PERTURB mode. Are you running DREAM in the theater branch?')
+except ModuleNotFoundError:
+    for dp in utils.DREAMPATHS:
+        sys.path.append(f'{dp}/build/dreampyface/cxx/')
+    try:
+        import dreampyface
+    except ModuleNotFoundError as err:
+        print('ERROR: Python module dreampyface not found. Cannot run TQ_MODE_PERTURB mode. Are you running DREAM in the theater branch?')
+
+
 
 try:
     import DREAM
@@ -22,7 +29,6 @@ except ModuleNotFoundError:
     import sys
     for dp in utils.DREAMPATHS:
         sys.path.append(dp)
-        sys.path.append(f'{dp}/build/dreampyface/cxx/')
     import DREAM
 
 from DREAM import DREAMSettings, DREAMOutput, DREAMException, runiface
@@ -37,30 +43,33 @@ import DREAM.Settings.Solver as Solver
 import DREAM.Settings.TransportSettings as Transport
 
 REMOVE_FILES = True
-MAX_RERUNS = 3
+MAX_RERUNS = 4
 
 # Number of radial nodes
 NR = 20
 
 # Maximum simulation time
-TMAX_TOT    = 2e-1
+TMAX_TOT    =   2.5e-1
+
+# Enable transport of cold electrons and REs
+TRANSPORT_COLD  = False
+TRANSPORT_RE    = False
+
 
 # Thermal quench modes
-TQ_EXP_DECAY    = 1
-TQ_PERTURB      = 2
+TQ_MODE_EXPDECAY    = 1
+TQ_MODE_PERTURB     = 2
 
 # (TQ) Exponential decay settings
 TMAX_IONIZ  = 1e-6
 TMAX_TQ     = Tokamak.t0 * 8
-NT_IONIZ    = 2000
-NT_TQ       = 4000
-NT_CQ       = 6000
+NT_IONIZ    = 1000
+NT_TQ       = 2000
+NT_CQ       = 3000
 
 # (TQ) IniMagnetic perturbation
 TQ_DECAY_TIME = Tokamak.t0
 TQ_FINAL_TEMPERATURE = Tokamak.T_final
-
-
 
 TQ_INITIAL_dBB0 = 1.5e-3
 
@@ -189,7 +198,7 @@ class DREAMSimulation(Simulation):
 
     ############## DISRUPTION SIMULATION SETUP ##############
 
-    def __init__(self, mode=TQ_EXP_DECAY, id='out', verbose=True, **inputs):
+    def __init__(self, mode=TQ_MODE_EXPDECAY, id='out', verbose=True, **inputs):
         """
         Constructor. Core simulation settings. No input parameters are used here.
         """
@@ -245,7 +254,7 @@ class DREAMSimulation(Simulation):
         several DREAM output objects. By default it runs an exponential decay
         for the thermal quench and then switches to a self consistent evolution
         of temperature. If this DREAMSimulation is initialized with the mode
-        TQ_PERTURB, it will instead run a thermal quench induced by a perturbed
+        TQ_MODE_PERTURB, it will instead run a thermal quench induced by a perturbed
         magnetic field. (OBS: this mode requires DREAM in the theater branch.)
 
         :param handleCrash:     If True, any crashed simulation are rerun in
@@ -260,7 +269,7 @@ class DREAMSimulation(Simulation):
 
         self._setInitialProfiles()
 
-        if self.mode == TQ_EXP_DECAY:
+        if self.mode == TQ_MODE_EXPDECAY:
 
             # Set exponential-decay temperature
             t, r, T = Tokamak.getTemperatureEvolution(self.input.T1, self.input.T2, tau0=TQ_DECAY_TIME, T_final=TQ_FINAL_TEMPERATURE, tmax=TMAX_TQ)#, nt=NT_TQ)
@@ -280,7 +289,7 @@ class DREAMSimulation(Simulation):
 
             # # Change to self consistent temperature and set external magnetic pertubation
             r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, self.input.dBB1, self.input.dBB2)
-            self._setSvenssonTransport(dBB, r)
+            self._setTransport(dBB, r)
 
             # Run CQ and runaway plateau part of simulation
             self.ds.timestep.setNt(NT_CQ)
@@ -292,11 +301,11 @@ class DREAMSimulation(Simulation):
             # Set output from DREAM output
             self.output = self.Output(do1, do2, do3)
 
-        elif self.mode == TQ_PERTURB:
+        elif self.mode == TQ_MODE_PERTURB:
 
             # Set edge vanishing TQ magnetic pertubation
             r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, TQ_INITIAL_dBB0, -1/Tokamak.a**2)
-            self._setSvenssonTransport(dBB, r)
+            self._setTransport(dBB, r)
 
             # Massive material injection
             do1 = self._runMMI()
@@ -315,7 +324,7 @@ class DREAMSimulation(Simulation):
 
             # # Change to self consistent temperature and set external magnetic pertubation
             r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, self.input.dBB1, self.input.dBB2)
-            self._setSvenssonTransport(dBB, r)
+            self._setTransport(dBB, r)
 
             # run final part of simulation
             self.ds.timestep.setNt(NT_CQ)
@@ -348,9 +357,9 @@ class DREAMSimulation(Simulation):
         if self.input.nH:
             self.ds.eqsys.n_i.addIon('H', n=self.input.nH, Z=1, Z0=1, hydrogen=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
         if self.input.nD:
-            self.ds.eqsys.n_i.addIon('D', n=self.input.nD, Z=1, Z0=1, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+            self.ds.eqsys.n_i.addIon('D', n=self.input.nD, Z=1, Z0=1, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_TRANSPARENT)
         if self.input.nT:
-            self.ds.eqsys.n_i.addIon('T', n=self.input.nT, Z=1, Z0=1, tritium=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+            self.ds.eqsys.n_i.addIon('T', n=self.input.nT, Z=1, Z0=1, tritium=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_TRANSPARENT)
             self.ds.eqsys.n_re.setTritium(True)
         if self.input.nHe:
             raise NotImplementedError('Helium is not yet implemented...')
@@ -394,7 +403,7 @@ class DREAMSimulation(Simulation):
         if self.input.nD2:
             r, n = utils.getDensityProfile(self.do, self.input.nD2, self.input.aD2)
             self.ds.eqsys.n_i.addIon('D2', Z=1, iontype=Ions.IONS_DYNAMIC, Z0=0, n=n, r=r,
-            opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+            opacity_mode=Ions.ION_OPACITY_MODE_TRANSPARENT)
 
         if self.input.nNe:
             r, n = utils.getDensityProfile(self.do, self.input.nNe, self.input.aNe)
@@ -414,9 +423,9 @@ class DREAMSimulation(Simulation):
         self.ds.fromOutput(out)
         return do
 
-    def _setSvenssonTransport(self, dBB, r):
+    def _setTransport(self, dBB, r):
         """
-        Configures the Svensson transport settings.
+        Configures the transport settings.
         """
         assert dBB.shape == r.shape
 
@@ -427,22 +436,22 @@ class DREAMSimulation(Simulation):
         tmax = self.ds.timestep.tmax
         nt = self.ds.timestep.nt
 
-        # Enable magnetic pertubations that will allow for radial transport
         t = np.linspace(0, tmax, nt)
 
-        self.ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-        self.ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=np.tile(dBB, (nt, 1)), r=r, t=t)
+        if TRANSPORT_COLD: # Enable radial transport of cold electrons
+            self.ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
+            self.ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=np.tile(dBB, (nt, 1)), r=r, t=t)
 
-        # Rechester-Rosenbluth diffusion operator
-        Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
-        Drr = np.tile(Drr, (nt,1,1,1))
+        if TRANSPORT_RE: # Enable radial transport of REs
+            Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
+            Drr = np.tile(Drr, (nt,1,1,1))
 
-        self.ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
-        self.ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
+            self.ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
+            self.ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
 
-        # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
-        self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
-        self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+            # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
+            self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
+            self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
 
 
     def _run(self, out=None, verbose=None, ntmax=None, getTmax=False):
@@ -450,7 +459,7 @@ class DREAMSimulation(Simulation):
         Run single simulation from DREAMSettings object and handles crashes.
         """
         if getTmax:
-            assert self.mode == TQ_PERTURB
+            assert self.mode == TQ_MODE_PERTURB
 
         do = None
         if verbose is None:
@@ -459,11 +468,11 @@ class DREAMSimulation(Simulation):
             quiet = (not verbose)
 
         try:
-            if self.mode == TQ_EXP_DECAY:
+            if self.mode == TQ_MODE_EXPDECAY:
                 do = runiface(self.ds, out, quiet=quiet)
                 return do
 
-            elif self.mode == TQ_PERTURB:
+            elif self.mode == TQ_MODE_PERTURB:
                 sim = dreampyface.setup_simulation(self.ds)
                 do = sim.run()
                 if getTmax:
@@ -483,12 +492,12 @@ class DREAMSimulation(Simulation):
                 if nt >= ntmax:
                     print(err)
                     print('ERROR : Skipping this simulation!')
-                    do = None
+                    return None
                 else:
                     print(err)
                     print(f'WARNING : Number of iterations is increased from {nt} to {2*nt}!')
                     self.ds.timestep.setNt(2*nt)
-                    do = self._run(out=out, verbose=verbose, ntmax=ntmax)
+                    return self._run(out=out, verbose=verbose, ntmax=ntmax)
             else:
                 raise err
 
@@ -513,12 +522,14 @@ class DREAMSimulation(Simulation):
 def main():
 
 
-    s = DREAMSimulation(mode=TQ_EXP_DECAY)
-    s.configureInput()
-    s.run(handleCrash=False)
+    s = DREAMSimulation(mode=TQ_MODE_EXPDECAY)
+    s.configureInput(nNe=1e18, nD2=2e21)
+    s.run(handleCrash=True)
 
     print('tCQ =', s.output.getCQTime(), 's')
     s.output.visualizeCurrents(show=True)
+
+
 
     return 0
 
