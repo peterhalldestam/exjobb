@@ -13,12 +13,12 @@ OUTPUT_DIR = 'outputs/'
 LOG_PATH = 'scan2.log'
 
 
-N_NEON      = 10
-N_DEUTERIUM = 10
+N_NEON      = 20
+N_DEUTERIUM = 20
 
 # log10
-MIN_DEUTERIUM, MAX_DEUTERIUM    = 18, 22 + np.log10(1.6)
-MIN_NEON, MAX_NEON              = 15, 18
+MIN_DEUTERIUM, MAX_DEUTERIUM    = 20, 22 + np.log10(1.6)
+MIN_NEON, MAX_NEON              = 17, 20
 
 DEUTERIUM_DENSITIES = np.logspace(MIN_DEUTERIUM, MAX_DEUTERIUM, N_DEUTERIUM)
 NEON_DENSITIES      = np.logspace(MIN_NEON, MAX_NEON, N_NEON)
