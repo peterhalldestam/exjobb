@@ -10,6 +10,7 @@ sys.path.append(os.path.abspath('..'))
 import utils
 import tokamaks.ITER as Tokamak
 from simulation import Simulation
+from simulationException import SimulationException
 
 try:
     import dreampyface
@@ -20,8 +21,6 @@ except ModuleNotFoundError:
         import dreampyface
     except ModuleNotFoundError as err:
         print('ERROR: Python module dreampyface not found. Cannot run TQ_MODE_PERTURB mode. Are you running DREAM in the theater branch?')
-
-
 
 try:
     import DREAM
@@ -63,9 +62,9 @@ TQ_MODE_PERTURB     = 2
 # (TQ) Exponential decay settings
 TMAX_IONIZ  = 1e-6
 TMAX_TQ     = Tokamak.t0 * 8
-NT_IONIZ    = 1000
-NT_TQ       = 2000
-NT_CQ       = 3000
+NT_IONIZ    = 2000
+NT_TQ       = 5000
+NT_CQ       = 10000
 
 # (TQ) IniMagnetic perturbation
 TQ_DECAY_TIME = Tokamak.t0
@@ -283,7 +282,7 @@ class DREAMSimulation(Simulation):
             self.ds.timestep.setTmax(TMAX_TQ - TMAX_IONIZ)
             out = self._getFileName('2', OUTPUT_DIR)
             self.ds.output.setFilename(out)
-            do2 = self._run(out=out)
+            do2 = self._run(out=out, ntmax=NT_TQ * 2**MAX_RERUNS)
             self.ds = DREAMSettings(self.ds)
             self.ds.fromOutput(out)
 
@@ -296,7 +295,7 @@ class DREAMSimulation(Simulation):
             self.ds.timestep.setTmax(TMAX_TOT - TMAX_TQ - TMAX_IONIZ)
             out = self._getFileName('3', OUTPUT_DIR)
             self.ds.output.setFilename(out)
-            do3 = self._run(out=out)
+            do3 = self._run(out=out, ntmax=NT_CQ * 2**MAX_RERUNS)
 
             # Set output from DREAM output
             self.output = self.Output(do1, do2, do3)
@@ -416,7 +415,7 @@ class DREAMSimulation(Simulation):
 
         out = self._getFileName('1', OUTPUT_DIR)
         self.ds.output.setFilename(out)
-        do = self._run(out=out)
+        do = self._run(out=out, ntmax=NT_IONIZ * 2**MAX_RERUNS)
 
         self.ds = DREAMSettings(self.ds)
         self.ds.clearIgnore()
@@ -490,16 +489,14 @@ class DREAMSimulation(Simulation):
                 if ntmax is None:
                     ntmax = 2**MAX_RERUNS * max(NT_IONIZ, NT_TQ, NT_CQ)
                 if nt >= ntmax:
-                    print(err)
-                    print('ERROR : Skipping this simulation!')
-                    return None
+                    raise SimulationException('MAXIMUM NUMBER OF RERUNS REACHED!') from err
                 else:
                     print(err)
                     print(f'WARNING : Number of iterations is increased from {nt} to {2*nt}!')
                     self.ds.timestep.setNt(2*nt)
                     return self._run(out=out, verbose=verbose, ntmax=ntmax)
             else:
-                raise err
+                raise SimulationException('DREAM CRASHED!') from err
 
 
     def _getFileName(self, io, dir):
@@ -522,9 +519,15 @@ class DREAMSimulation(Simulation):
 def main():
 
 
+    # Run simulation that will crash to test
     s = DREAMSimulation(mode=TQ_MODE_EXPDECAY)
-    s.configureInput(nNe=1e18, nD2=2e21)
-    s.run(handleCrash=True)
+    s.configureInput(nNe=1e18, nD2=2e22)
+
+    try:
+        s.run(handleCrash=True)
+    except DREAMSimulationException:
+        print('Ojsan')
+        sys.exit()
 
     print('tCQ =', s.output.getCQTime(), 's')
     s.output.visualizeCurrents(show=True)

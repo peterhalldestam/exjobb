@@ -8,9 +8,10 @@ sys.path.append(os.path.abspath('..'))
 import utils
 from DREAM import DREAMOutput
 from DREAMSimulation import DREAMSimulation
+from simulationException import SimulationException
 
 OUTPUT_DIR = 'outputs/'
-LOG_PATH = 'scan2.log'
+LOG_PATH = 'scan_test.log'
 
 
 N_NEON      = 20
@@ -53,14 +54,17 @@ def main():
 
             s = DREAMSimulation(verbose=False)
             s.configureInput(nNe=nNe, nD2=nD)
-            s.run(handleCrash=True)
 
-            tCQ  = s.output.getCQTime()
-            I_re = s.output.getMaxRECurrent()
-
-            logging.info(f'{i},\t{nNe},\t{nD} => {tCQ:2.5},\t{I_re:10.3}')
-
-            removeOutputFiles()
+            try:
+                s.run(handleCrash=True)
+            except SimulationException:
+                print('Skipping this simulation.')
+            else:
+                tCQ  = s.output.getCQTime()
+                I_re = s.output.getMaxRECurrent()
+                logging.info(f'{i},\t{nNe},\t{nD} => {tCQ:2.5},\t{I_re:10.3}')
+            finally:
+                removeOutputFiles()
 
     return 0
 
