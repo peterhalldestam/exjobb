@@ -10,7 +10,7 @@ if len(sys.argv) == 2:
         log = json.load(fp)
 
     nD2, nNe = log['P'][-1]
-
+    
     s = DREAMSimulation(nD2=nD2, nNe=nNe, id='optim0')
     s.run(handleCrash=True)
     

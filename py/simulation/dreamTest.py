@@ -13,9 +13,9 @@ def logisticFunction(x, x0, k):
     return 1/2 + 1/2*np.tanh(k*(x-x0))
 
 def densityFun(nD2, nNe, out='out'):
-   
+
     s = DREAMSimulation(id = out, nD2=nD2, nNe=nNe, verbose=False)
-    
+
     try:
         s.run(handleCrash=True)
     except:
@@ -30,14 +30,14 @@ def densityFun(nD2, nNe, out='out'):
 
     t_CQ = s.output.getCQTime()
     I_re_max = s.output.getMaxRECurrent()
-    
+
     #cost_I = (I_re_max - I_crit) / I_crit * np.heaviside(I_re_max - I_crit, 1)
     cost_I = I_re_max / I_crit
     cost_t = logisticFunction(-t_CQ, -t_CQ_min, k) + logisticFunction(t_CQ, t_CQ_max, k)
-    
+
     for file in os.listdir('outputs'):
         os.remove('outputs/'+file)
-    
+
     return cost_I + 100*cost_t
 
 
