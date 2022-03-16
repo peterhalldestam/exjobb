@@ -41,8 +41,9 @@ import DREAM.Settings.Equations.HotElectronDistribution as FHot
 import DREAM.Settings.Solver as Solver
 import DREAM.Settings.TransportSettings as Transport
 
-REMOVE_FILES = True
-MAX_RERUNS = 4
+CHECK_OUTPUT = True     # Check if n_re / n_cold > 1e-2 post simulation
+REMOVE_FILES = True     # Removes output files post simulation
+MAX_RERUNS = 4          # Maximum number of reruns before raising SimulationException
 
 # Number of radial nodes
 NR = 20
@@ -98,14 +99,14 @@ class DREAMSimulation(Simulation):
         nT:     float = .5 * Tokamak.ne0
         nHe:    float = 0.
 
-        # Injected ion densities & profiles
+        # Massive gas injection density profiles
         nD2:    float = 7 * Tokamak.ne0
         nNe:    float = .08 * Tokamak.ne0
         aD2:    float = 0.
         aNe:    float = 0.
         #...
 
-        # Initial current density
+        # Initial current density profile
         j1:     float = 1.
         j2:     float = .41
         Ip0:    float = Tokamak.Ip
@@ -469,11 +470,13 @@ class DREAMSimulation(Simulation):
         try:
             if self.mode == TQ_MODE_EXPDECAY:
                 do = runiface(self.ds, out, quiet=quiet)
+                utils.checkElectronDensityRatio(do, exc=SimulationException)
                 return do
 
             elif self.mode == TQ_MODE_PERTURB:
                 sim = dreampyface.setup_simulation(self.ds)
                 do = sim.run()
+                utils.checkElectronDensityRatio(do, exc=SimulationException)
                 if getTmax:
                     return do, sim.getMaxTime()
                 else:
@@ -521,11 +524,11 @@ def main():
 
     # Run simulation that will crash to test
     s = DREAMSimulation(mode=TQ_MODE_EXPDECAY)
-    s.configureInput(nNe=1e18, nD2=2e22)
+    s.configureInput(nNe=1e18, nD2=2e20)
 
     try:
         s.run(handleCrash=True)
-    except DREAMSimulationException:
+    except SimulationException:
         print('Ojsan')
         sys.exit()
 

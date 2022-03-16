@@ -20,6 +20,29 @@ except ModuleNotFoundError:
 
 from DREAM import DREAMOutput
 
+def checkElectronDensityRatio(do, exc=None, tol=1e-2):
+    """
+    Checks whether given output contains instances where the assumption
+    n_re << n_cold or not. It is invalid when the ratio n_re / n_cold is greater
+    that some tolerance tol. If invalid, a warning is shown (or if user provides
+    an exception, it will be raised.
+
+    :param do:      DREAM output object.
+    :param exc:     Exception to raise.
+    :param tol:     Tolerance < n_re / n_cold.
+    """
+    if exc is not None and not issubclass(exc, Exception):
+        raise AttributeError('Expected exc to be an Exception subclass.')
+
+    n_re = do.eqsys.n_re.data
+    n_cold = do.eqsys.n_cold.data
+    if np.max(n_re / n_cold) > tol:
+        msg = f'n_re / n_cold > {tol}'
+        if exc is None:
+            warnings.warn(msg)
+        else:
+            raise exc(msg)
+
 def join(dataStr: str, *dos: DREAMOutput, time=False, radius=False) -> np.ndarray:
     """
     Joins data obtained from any number of DREAM output objects in *dos.
