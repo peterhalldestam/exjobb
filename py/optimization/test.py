@@ -24,9 +24,9 @@ def obFun(output):
 
     return cost_I + 100*cost_t
 
-parameters = {'nD2': 1e22, 'nNe': 6e16, 'aD2': 0.1, 'aNe': 0.1}
-lowerBound = (2e20, 0., -10., -10.)
-upperBound = (3e22, 12e18, 10., 10.)
+parameters = {'nD2': 6e20, 'nNe': 8e18}#{'nD2': 1e22, 'nNe': 6e16}
+lowerBound = (2e20, 0.)
+upperBound = (3e22, 12e18)
 
 po = PowellOptimization(simulation=DREAMSimulation, parameters=parameters, verbose=True,
                         obFun=obFun, maxIter = 5,
