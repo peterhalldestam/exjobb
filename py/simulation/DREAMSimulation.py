@@ -63,9 +63,9 @@ TQ_MODE_PERTURB     = 2
 # (TQ) Exponential decay settings
 TMAX_IONIZ  = 1e-6
 TMAX_TQ     = Tokamak.t0 * 8
-NT_IONIZ    = 2000
-NT_TQ       = 5000
-NT_CQ       = 10000
+NT_IONIZ    = 1000
+NT_TQ       = 2000
+NT_CQ       = 4000
 
 # (TQ) IniMagnetic perturbation
 TQ_DECAY_TIME = Tokamak.t0
@@ -145,6 +145,14 @@ class DREAMSimulation(Simulation):
             self.I_ohm  = utils.join('eqsys.j_ohm.current()', dos)
             self.I_tot  = utils.join('eqsys.j_tot.current()', dos)
             self.T_cold = utils.join('eqsys.T_cold.data', dos)
+
+            for do in dos:
+                do.close()
+
+            if REMOVE_FILES:
+                paths = [OUTPUT_DIR + path for path in os.listdir(OUTPUT_DIR)]
+                for fp in paths:
+                    os.remove(fp)
 
             assert len(self.r) == NR
             assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
@@ -301,6 +309,7 @@ class DREAMSimulation(Simulation):
             # Set output from DREAM output
             self.output = self.Output(do1, do2, do3)
 
+
         elif self.mode == TQ_MODE_PERTURB:
 
             # Set edge vanishing TQ magnetic pertubation
@@ -339,10 +348,6 @@ class DREAMSimulation(Simulation):
         else:
             raise AttributeError(f'Unexpected mode value mode={self.mode}.')
 
-        if REMOVE_FILES:
-            paths = [OUTPUT_DIR + path for path in os.listdir(OUTPUT_DIR)]
-            for fp in paths:
-                os.remove(fp)
 
         return 0
 
