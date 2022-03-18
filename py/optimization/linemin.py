@@ -26,6 +26,7 @@ def findBracket(fun, b0, bounds, gamma=2, verbose=False):
         fa = dum
         
         swap = True
+        print('swap done')
         
     cx = bx + gamma*(bx-ax)
     fc = fun(cx)
@@ -54,7 +55,7 @@ def findBracket(fun, b0, bounds, gamma=2, verbose=False):
     else:
         return (ax, bx, cx)
 
-def goldenSectionSearch(fun, bracket, tol=1e-2, verbose=False):
+def goldenSectionSearch(fun, bracket, tol=1e-2, maxIter=1000, verbose=False):
     """
     1D minimization function using the Golden Section Search method.
 
@@ -80,9 +81,15 @@ def goldenSectionSearch(fun, bracket, tol=1e-2, verbose=False):
     f1 = fun(x1)
     f2 = fun(x2)
     
+    exceeded = False
     i = 0
-    while np.abs(x3-x0) > tol:
+    while np.abs(x3-x0) > tol*(np.abs(x1)+np.abs(x2)):
         i += 1
+        
+        if i > maxIter:
+            exceeded = True
+            break
+        
         if f2 < f1:
             x0 = x1
             x1 = x2
@@ -95,8 +102,10 @@ def goldenSectionSearch(fun, bracket, tol=1e-2, verbose=False):
             x1 = R*x2 + C*x0
             f2 = f1
             f1 = fun(x1)
-            
-    if verbose:      
+    
+    if verbose and exceeded:
+        print(f'Maximum number of iterations exceeded (maxIter = {maxIter}). Terminating Golden Section Search.')
+    elif verbose:      
         print(f'Golden Section Search finished after {i} iterations.')  
     
     if f1 < f2:
@@ -198,6 +207,6 @@ def Brent(fun, bracket, tol=1e-2, maxIter=1000, verbose=False):
                 fv = fu
                 
     if verbose and i+1 == maxIter:
-        print(f'Maximum number of iterations exceeded (maxIter = {maxIter}). Terminating minimization process.')
+        print(f'Maximum number of iterations exceeded (maxIter = {maxIter}). Terminating Brent.')
                 
     return x, fx

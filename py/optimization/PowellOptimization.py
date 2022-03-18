@@ -8,8 +8,15 @@ from types import FunctionType
 from optimization import Optimization
 from linemin import Brent, goldenSectionSearch
 
+# Arbitrary large and small numbers used in certain steps to represent infinity and avoid dividing by zero.
+BIG = 1e10
+SMALL = 1e-10
+
 LINEMIN_BRENT = 1
-LINEMIN_GS = 2
+LINEMIN_GSS = 2
+
+POWELL_TYPE_RESET = 1
+POWELL_TYPE_DLD = 2
 
 class PowellOptimization(Optimization):
 
@@ -26,11 +33,12 @@ class PowellOptimization(Optimization):
         upperBound: tuple
 
         # Termination conditions
-        ftol:       float       = 1e-2
+        ftol:       float       = 1e-1
         maxIter:    int         = 10
 
-        # Linemin method
+        # Linemin method and Powell type
         linemin:    int         = LINEMIN_BRENT
+        powellType: int         = POWELL_TYPE_RESET
 
     def __init__(self, simulation=None, parameters={}, verbose=True, **settings):
         """
@@ -45,7 +53,7 @@ class PowellOptimization(Optimization):
         Any configuration outside of the specified domain automatically returns an arbitrary large number (10^10).
         """
         if (P < self.settings.lowerBound).any() or (P > self.settings.upperBound).any():
-            return 1e+10
+            return BIG
 
         else:
             self.setParameters(P)
@@ -65,12 +73,10 @@ class PowellOptimization(Optimization):
         Method used to find two initial starting points when attempting to bracket a minimum.
         Additionaly, the upper and lower limits of the 1D line function are returned.
         """
-        # Arbitrary small number used to avoid dividing by zero and avoid errors if the vector is already located at the minimum.
-        eps = 1e-10
 
         # Computes the values xi for which P + xi*u lies on the upper and lower boundries of the respective parameters.
-        upperCross = (self.settings.upperBound - P) / (u+eps)
-        lowerCross = (self.settings.lowerBound - P) / (u+eps)
+        upperCross = (self.settings.upperBound - P) / (u+SMALL)
+        lowerCross = (self.settings.lowerBound - P) / (u+SMALL)
         allCross = np.append(upperCross, lowerCross)
 
         # Finds the positive and negative values for xi that minimize abs(xi), i.e. the points at which the first boundries are crossed.
@@ -80,7 +86,7 @@ class PowellOptimization(Optimization):
         lineBounds = (xin, xip)
         lp = xip * np.linalg.norm(u)
 
-        return (-eps, lp/10), lineBounds
+        return (-SMALL, lp/10), lineBounds
 
     def _findBracket(self, fun, b0, bounds, gamma=2, verbose=False):
         """
@@ -107,6 +113,7 @@ class PowellOptimization(Optimization):
             fa = dum
 
             swap = True
+            print('Swap done')
 
         cx = bx + gamma*(bx-ax)
         fc = fun(cx)
@@ -142,7 +149,7 @@ class PowellOptimization(Optimization):
         """
         if self.settings.linemin == LINEMIN_BRENT:
             linemin = Brent
-        elif self.setting.linemin == LINEMIN_GS:
+        elif self.settings.linemin == LINEMIN_GSS:
             linemin = goldenSectionSearch
         else:
             raise AttributeError('The specified 1D minimization method is invalid.')
@@ -151,16 +158,16 @@ class PowellOptimization(Optimization):
         P = np.copy(P0)
         nD = len(P0)
 
-        f0 = np.inf
+        fp = BIG
         fmin = self._restrainedFun(P0)
 
         self.log = {'P': np.copy(P), 'fun': np.array([fmin])}
 
         # Main loop that updates the basis to avoid linear dependence.
         i = 0
-        while np.abs(f0-fmin) > self.settings.ftol:
+        while 2.*np.abs(fp-fmin) > self.settings.ftol*(np.abs(fp)+np.abs(fmin)):
             i += 1
-            f0 = fmin
+            fp = fmin
 
             if i > self.settings.maxIter:
                 if self.verbose:
@@ -168,11 +175,12 @@ class PowellOptimization(Optimization):
                 self.writeLog()
                 return P, fmin
 
-            basis = np.eye(nD) # Resets basis (other methods not yet implemented).
+            if self.settings.powellType == POWELL_TYPE_RESET or i == 1:
+                basis = np.eye(nD) # Resets basis (other methods not yet implemented).
 
             # Iterates through nD cycles of the basis vectors until all have been updated.
             for _ in range(nD):
-
+                f0 = fmin
                 # Finds the minimum of the function along each direction in the basis.
                 for u in basis:
                     lineFun = lambda x: self._restrainedFun(P + x*u)
@@ -180,29 +188,61 @@ class PowellOptimization(Optimization):
                     b0, lineBounds = self._initBracket(P, u)
                     bracket = self._findBracket(lineFun, b0, lineBounds, verbose=self.verbose)
 
-                    xmin, fmin = linemin(lineFun, bracket, verbose=self.verbose, maxIter=20)
+                    xmin, fmin = linemin(lineFun, bracket, tol=1e-1, maxIter=20, verbose=self.verbose)
                     P += xmin*u
 
                     self.log['P'] = np.vstack((self.log['P'], P))
                     self.log['fun'] = np.append(self.log['fun'], fmin)
 
+                
+
                 # Creates a new basis vector from the total distance moved in the previous cycle.
                 uN = P - P0
-                basis[:-1] = basis[1:]
-                basis[-1] = uN
+                
+                if self.settings.powellType == POWELL_TYPE_DLD:
+                    fE = self._restrainedFun(P0 + 2*uN)
+                    
+                    diff = self.log['fun'][-nD-1:-1] - self.log['fun'][-nD:]
+                    iDf = np.argmax(diff)
+                    Df = diff[iDf]
+                    
+                    if fE < f0 and 2.*(f0-2*fmin+fE) * ((f0-fmin) - Df)**2 < (f0-fE)**2 * Df:
+                        if self.verbose:
+                            print('Discarding direction of largest decrease.')
+                            
+                        basis[iDf] = uN
+                        
+                        # Minimizes along new direction and sets new P0.
+                        lineFun = lambda x: self._restrainedFun(P + x*uN)
 
-                # Minimizes along new direction and sets new P0.
-                lineFun = lambda x: self._restrainedFun(P + x*uN)
+                        b0, lineBounds = self._initBracket(P, uN)
+                        bracket = self._findBracket(lineFun, b0, lineBounds, verbose=self.verbose)
 
-                b0, lineBounds = self._initBracket(P, uN)
-                bracket = self._findBracket(lineFun, b0, lineBounds, verbose=self.verbose)
+                        xmin, fmin = linemin(lineFun, bracket, tol=1e-1, maxIter=20, verbose=self.verbose)
+                        P += xmin*uN
+                        
+                        self.log['P'] = np.vstack((self.log['P'], P))
+                        self.log['fun'] = np.append(self.log['fun'], fmin)
+                
+                else:
+                    basis[:-1] = basis[1:]
+                    basis[-1] = uN
 
-                xmin, fmin = linemin(lineFun, bracket, verbose=self.verbose, maxIter=20)
-                P += xmin*uN
+                    # Minimizes along new direction and sets new P0.
+                    lineFun = lambda x: self._restrainedFun(P + x*uN)
+
+                    b0, lineBounds = self._initBracket(P, uN)
+                    bracket = self._findBracket(lineFun, b0, lineBounds, verbose=self.verbose)
+
+                    xmin, fmin = linemin(lineFun, bracket, tol=1e-1, maxIter=20, verbose=self.verbose)
+                    P += xmin*uN
+                    
+                    self.log['P'] = np.vstack((self.log['P'], P))
+                    self.log['fun'] = np.append(self.log['fun'], fmin)
+                
+                
                 P0 = np.copy(P)
 
-                self.log['P'] = np.vstack((self.log['P'], P))
-                self.log['fun'] = np.append(self.log['fun'], fmin)
 
         if self.verbose:
             print(f'Powell finished after {i} iterations.')

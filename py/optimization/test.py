@@ -6,6 +6,8 @@ sys.path.append('../simulation')
 import numpy as np
 from DREAMSimulation import DREAMSimulation
 from PowellOptimization import PowellOptimization
+from PowellOptimization import LINEMIN_BRENT, LINEMIN_GSS
+from PowellOptimization import POWELL_TYPE_RESET, POWELL_TYPE_DLD
 
 def logisticFunction(x, x0, k):
     return .5 + .5*np.tanh(k*(x-x0))
@@ -30,7 +32,8 @@ upperBound = (3e22, 12e18)
 
 po = PowellOptimization(simulation=DREAMSimulation, parameters=parameters, verbose=True,
                         obFun=obFun, maxIter = 5,
-                        upperBound=upperBound, lowerBound=lowerBound)
+                        upperBound=upperBound, lowerBound=lowerBound,
+                        linemin = LINEMIN_BRENT, powellType = POWELL_TYPE_RESET)
 
 output = po.run()
 print(output)
