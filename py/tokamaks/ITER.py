@@ -38,9 +38,49 @@ T_final = 50
 # Radial grid resolution
 NR = 101
 
+
 def setMagneticField(ds, nr=40, visualize=False):
     """
-    Set an ITER-like magnetic field for the AnalyticB radial grid generator.
+    Set an ITER-like magnetic field for the radial grid generator.
+
+    Source: István Pusztai et al (2022).
+    """
+    ds.radialgrid.setType(RadialGrid.TYPE_ANALYTIC_TOROIDAL)
+
+    ds.radialgrid.setMajorRadius(R0)
+    ds.radialgrid.setMinorRadius(a)
+    ds.radialgrid.setWallRadius(b)
+    ds.radialgrid.setNr(nr)
+
+    # Radial grid for analytical magnetic field
+    r = np.linspace(0, a, nr)
+
+    def f(a0, a1, a2, a3, a4):
+        """
+        Polynomial expansion a0 + a1 * r + a2 * r^2 + a3 * r^3 + a4 * r^4
+        """
+        return np.polyval(np.flip([a0, a1, a2, a3, a4]), r)
+
+    # Shaping parameters
+    ds.radialgrid.setShapeParameter('kappa', r=r, data=f(1.5, 0, 0, 0, .02))
+    ds.radialgrid.setShapeParameter('delta', r=r, data=f(0, 0, .035, 0, .017))
+    ds.radialgrid.setShapeParameter('Delta', r=r, data=f(0, 0, -.00658678, -.00634124, 0))
+
+    # Poloidal magnetic flux
+    ds.radialgrid.setShapeParameter('psi_p0', r=r, data=f(0, 0, .794102, -0.117139, 0))
+
+    # Toroidal magnetic field function
+    ds.radialgrid.setShapeParameter('GOverR0', r=r, data=f(6, 0, -.310741, .107719, 0))
+
+    if visualize:
+        ds.radialgrid.visualize(ntheta=200)
+
+
+def setMagneticField_(ds, nr=40, visualize=False):
+    """
+    (OLD) Set an ITER-like magnetic field for the radial grid generator.
+
+    Source: Mathias Hoppe chalmersplasmatheory/DREAM.git
     """
     global R0, a, b, B0
 
@@ -65,8 +105,8 @@ def setMagneticField(ds, nr=40, visualize=False):
     ds.radialgrid.setWallRadius(b)
     ds.radialgrid.setNr(nr)
 
-    ds.radialgrid.setShaping(psi=psi_p, rpsi=psi_r, GOverR0=B0)
-    # ds.radialgrid.setShaping(psi=psi_p, rpsi=psi_r, GOverR0=B0, kappa=kappa, rkappa=r, delta=delta, rdelta=r)
+    # ds.radialgrid.setShaping(psi=psi_p, rpsi=psi_r, GOverR0=B0)
+    ds.radialgrid.setShaping(psi=psi_p, rpsi=psi_r, GOverR0=B0, kappa=kappa, rkappa=r, delta=delta, rdelta=r)
 
     if visualize:
         ds.radialgrid.visualize(ntheta=200)
