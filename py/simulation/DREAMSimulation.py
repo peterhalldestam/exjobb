@@ -287,63 +287,20 @@ class DREAMSimulation(Simulation):
             do1 = self._runMMI()
 
             # run TQ part of simulation
-            self.ds.timestep.setNt(NT_TQ)
-            self.ds.timestep.setTmax(TMAX_TQ - TMAX_IONIZ)
-            out = self._getFileName('2', OUTPUT_DIR)
-            self.ds.output.setFilename(out)
-            do2 = self._run(out=out, ntmax=NT_TQ * 2**MAX_RERUNS)
-            self.ds = DREAMSettings(self.ds)
-            self.ds.fromOutput(out)
+            do2 = self._getDREAMOutput('2', NT_TQ, TMAX_TQ - TMAX_IONIZ)
 
             # # Change to self consistent temperature and set external magnetic pertubation
             r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, self.input.dBB1, self.input.dBB2)
             self._setTransport(dBB, r)
 
             # Run CQ and runaway plateau part of simulation
-            self.ds.timestep.setNt(NT_CQ)
-            self.ds.timestep.setTmax(TMAX_TOT - TMAX_TQ - TMAX_IONIZ)
-            out = self._getFileName('3', OUTPUT_DIR)
-            self.ds.output.setFilename(out)
-            do3 = self._run(out=out, ntmax=NT_CQ * 2**MAX_RERUNS)
+            do3 = self._getDREAMOutput('3', NT_CQ, TMAX_TOT - TMAX_TQ - TMAX_IONIZ)
 
             # Set output from DREAM output
             self.output = self.Output(do1, do2, do3)
 
-
         elif self.mode == TQ_MODE_PERTURB:
-
-            # Set edge vanishing TQ magnetic pertubation
-            r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, TQ_INITIAL_dBB0, -1/Tokamak.a**2)
-            self._setTransport(dBB, r)
-
-            # Massive material injection
-            do1 = self._runMMI()
-
-            # Set function used to terminate simulation when a certain T is reached
-            self.ds.timestep.setTerminationFunction(lambda s: utils.terminate(s, TQ_FINAL_TEMPERATURE))
-
-            # run TQ part of simulation
-            self.ds.timestep.setNt(NT_TQ)
-            self.ds.timestep.setTmax(TMAX - TMAX_IONIZ)
-            out = self._getFileName('2', OUTPUT_DIR)
-            self.ds.output.setFilename(out)
-            do2, tmax_TQ = self._run(out=out, getTmax=True)   # obtain time of termination
-            self.ds = DREAMSettings(self.ds)
-            self.ds.fromOutput(out)
-
-            # # Change to self consistent temperature and set external magnetic pertubation
-            r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, self.input.dBB1, self.input.dBB2)
-            self._setTransport(dBB, r)
-
-            # run final part of simulation
-            self.ds.timestep.setNt(NT_CQ)
-            self.ds.timestep.setTmax(TMAX_TOT - tmax_TQ - TMAX_IONIZ)
-            out = self._getFileName('3', OUTPUT_DIR)
-            self.ds.output.setFilename(out)
-            do3 = self._run(out=out)
-
-            # Set output
-            self.output = self.Output(do1, do2, do3)
+            pass
 
         else:
             raise AttributeError(f'Unexpected mode value mode={self.mode}.')
@@ -353,6 +310,20 @@ class DREAMSimulation(Simulation):
 
 
     ###### SIMULATION HELPER FUNCTIONS #######
+
+    def _getDREAMOutput(self, name, nt, tmax):
+        """
+        Runs DREAM simulation with given time resolution options and returns the
+        resulting DREAM output object.
+        """
+        self.ds.timestep.setNt(nt)
+        self.ds.timestep.setTmax(tmax)
+        out = self._getFileName(name, OUTPUT_DIR)
+        self.ds.output.setFilename(out)
+        do = self._run(out=out)
+        self.ds = DREAMSettings(self.ds)
+        self.ds.fromOutput(out)
+        return do
 
     def _setInitialProfiles(self):
         """
@@ -399,35 +370,6 @@ class DREAMSimulation(Simulation):
         self.ds.eqsys.j_ohm.setInitialProfile(j, radius=rj, Ip0=self.input.Ip0)
 
 
-    def _runMMI(self):
-        """
-        Injects neutral gas and run a short ionization simulation to allow them
-        to settle.
-        """
-        # Add injected materials
-        if self.input.nD2:
-            r, n = utils.getDensityProfile(self.do, self.input.nD2, self.input.aD2)
-            self.ds.eqsys.n_i.addIon('D2', Z=1, iontype=Ions.IONS_DYNAMIC, Z0=0, n=n, r=r,
-            opacity_mode=Ions.ION_OPACITY_MODE_TRANSPARENT)
-
-        if self.input.nNe:
-            r, n = utils.getDensityProfile(self.do, self.input.nNe, self.input.aNe)
-            self.ds.eqsys.n_i.addIon('Ne', Z=10, iontype=Ions.IONS_DYNAMIC, Z0=0, n=n, r=r)
-
-        self.ds.solver.tolerance.set(reltol=1e-2)
-        self.ds.solver.setMaxIterations(maxiter=500)
-        self.ds.timestep.setTmax(TMAX_IONIZ)
-        self.ds.timestep.setNt(NT_IONIZ)
-
-        out = self._getFileName('1', OUTPUT_DIR)
-        self.ds.output.setFilename(out)
-        do = self._run(out=out, ntmax=NT_IONIZ * 2**MAX_RERUNS)
-
-        self.ds = DREAMSettings(self.ds)
-        self.ds.clearIgnore()
-        self.ds.fromOutput(out)
-        return do
-
     def _setTransport(self, dBB, r):
         """
         Configures the transport settings.
@@ -458,6 +400,28 @@ class DREAMSimulation(Simulation):
             self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
             self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
 
+    def _runMMI(self):
+        """
+        Injects neutral gas and run a short ionization simulation to allow them
+        to settle.
+        """
+        # Add injected materials
+        if self.input.nD2:
+            r, n = utils.getDensityProfile(self.do, self.input.nD2, self.input.aD2)
+            self.ds.eqsys.n_i.addIon('D2', Z=1, iontype=Ions.IONS_DYNAMIC, Z0=0, n=n, r=r,
+            opacity_mode=Ions.ION_OPACITY_MODE_TRANSPARENT)
+
+        if self.input.nNe:
+            r, n = utils.getDensityProfile(self.do, self.input.nNe, self.input.aNe)
+            self.ds.eqsys.n_i.addIon('Ne', Z=10, iontype=Ions.IONS_DYNAMIC, Z0=0, n=n, r=r)
+
+        self.ds.solver.tolerance.set(reltol=1e-2)
+        self.ds.solver.setMaxIterations(maxiter=500)
+        self.ds.timestep.setTmax(TMAX_IONIZ)
+        self.ds.timestep.setNt(NT_IONIZ)
+
+        do = self._getDREAMOutput('1', NT_IONIZ, TMAX_IONIZ)
+        return do
 
     def _run(self, out=None, verbose=None, ntmax=None, getTmax=False):
         """
@@ -497,14 +461,14 @@ class DREAMSimulation(Simulation):
                 if ntmax is None:
                     ntmax = 2**MAX_RERUNS * max(NT_IONIZ, NT_TQ, NT_CQ)
                 if nt >= ntmax:
-                    raise SimulationException('MAXIMUM NUMBER OF RERUNS REACHED!') from err
+                    raise SimulationException('ERROR: MAXIMUM NUMBER OF RERUNS REACHED!') from err
                 else:
                     print(err)
                     print(f'WARNING : Number of iterations is increased from {nt} to {2*nt}!')
                     self.ds.timestep.setNt(2*nt)
                     return self._run(out=out, verbose=verbose, ntmax=ntmax)
             else:
-                raise SimulationException('DREAM CRASHED!') from err
+                raise SimulationException('ERROR: DREAM CRASHED!') from err
 
 
     def _getFileName(self, io, dir):
@@ -527,20 +491,12 @@ class DREAMSimulation(Simulation):
 def main():
 
 
-    # Run simulation that will crash to test
     s = DREAMSimulation(mode=TQ_MODE_EXPDECAY)
     s.configureInput(nNe=1e18, nD2=2e20)
 
-    try:
-        s.run(handleCrash=True)
-    except SimulationException:
-        print('Ojsan')
-        sys.exit()
-
-    print('tCQ =', s.output.getCQTime(), 's')
+    s.run(handleCrash=False)
+    print(f'tCQ = {s.output.getCQTime()} s')
     s.output.visualizeCurrents(show=True)
-
-
 
     return 0
 
