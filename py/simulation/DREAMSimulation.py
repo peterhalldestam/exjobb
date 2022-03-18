@@ -13,16 +13,6 @@ from simulation import Simulation
 from simulationException import SimulationException
 
 try:
-    import dreampyface
-except ModuleNotFoundError:
-    for dp in utils.DREAMPATHS:
-        sys.path.append(f'{dp}/build/dreampyface/cxx/')
-    try:
-        import dreampyface
-    except ModuleNotFoundError as err:
-        print('ERROR: Python module dreampyface not found. Cannot run TQ_MODE_PERTURB mode. Are you running DREAM in the theater branch?')
-
-try:
     import DREAM
 except ModuleNotFoundError:
     import sys
@@ -55,10 +45,9 @@ TMAX_TOT    =   2.5e-1
 TRANSPORT_COLD  = False
 TRANSPORT_RE    = False
 
-
 # Thermal quench modes
 TQ_MODE_EXPDECAY    = 1
-TQ_MODE_PERTURB     = 2
+TQ_MODE_TRANSPORT   = 2
 
 # (TQ) Exponential decay settings
 TMAX_IONIZ  = 1e-6
@@ -67,10 +56,9 @@ NT_IONIZ    = 1000
 NT_TQ       = 2000
 NT_CQ       = 4000
 
-# (TQ) IniMagnetic perturbation
+# (TQ) Transport settings
 TQ_DECAY_TIME = Tokamak.t0
 TQ_FINAL_TEMPERATURE = Tokamak.T_final
-
 TQ_INITIAL_dBB0 = 1.5e-3
 
 SETTINGS_DIR    = 'settings/'
@@ -262,8 +250,8 @@ class DREAMSimulation(Simulation):
         several DREAM output objects. By default it runs an exponential decay
         for the thermal quench and then switches to a self consistent evolution
         of temperature. If this DREAMSimulation is initialized with the mode
-        TQ_MODE_PERTURB, it will instead run a thermal quench induced by a perturbed
-        magnetic field. (OBS: this mode requires DREAM in the theater branch.)
+        TQ_MODE_TRANSPORT, it will instead run a thermal quench induced by a perturbed
+        magnetic field.
 
         :param handleCrash:     If True, any crashed simulation are rerun in
                                 higher resolution in time, until a maximum
@@ -278,7 +266,6 @@ class DREAMSimulation(Simulation):
         self._setInitialProfiles()
 
         if self.mode == TQ_MODE_EXPDECAY:
-
             # Set exponential-decay temperature
             t, r, T = Tokamak.getTemperatureEvolution(self.input.T1, self.input.T2, tau0=TQ_DECAY_TIME, T_final=TQ_FINAL_TEMPERATURE, tmax=TMAX_TQ)#, nt=NT_TQ)
             self.ds.eqsys.T_cold.setPrescribedData(T, radius=r, times=t)
@@ -289,7 +276,7 @@ class DREAMSimulation(Simulation):
             # run TQ part of simulation
             do2 = self._getDREAMOutput('2', NT_TQ, TMAX_TQ - TMAX_IONIZ)
 
-            # # Change to self consistent temperature and set external magnetic pertubation
+            # Change to self consistent temperature and set settings
             r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, self.input.dBB1, self.input.dBB2)
             self._setTransport(dBB, r)
 
@@ -299,8 +286,35 @@ class DREAMSimulation(Simulation):
             # Set output from DREAM output
             self.output = self.Output(do1, do2, do3)
 
-        elif self.mode == TQ_MODE_PERTURB:
-            pass
+
+
+        elif self.mode == TQ_MODE_TRANSPORT:
+            # Set to self consistent temperature and set transport settings
+            r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, TQ_INITIAL_dBB0, -1/Tokamak.a**2)
+            self._setTransport(dBB, r)
+
+            # Massive material injection
+            do1 = self._runMMI()
+
+            # run TQ part of simulation
+            do2 = self._getDREAMOutput('2', NT_TQ, TMAX_TQ - TMAX_IONIZ)
+
+            ###
+
+            # DO KBMB HERE!!
+
+            ###
+
+
+            # Change to user input transport settings
+            r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, self.input.dBB1, self.input.dBB2)
+            self._setTransport(dBB, r)
+
+            # Run CQ and runaway plateau part of simulation
+            do3 = self._getDREAMOutput('3', NT_CQ, TMAX_TOT - TMAX_TQ - TMAX_IONIZ)
+
+            # Set output from DREAM output
+            self.output = self.Output(do1, do2, do3)
 
         else:
             raise AttributeError(f'Unexpected mode value mode={self.mode}.')
@@ -324,6 +338,7 @@ class DREAMSimulation(Simulation):
         self.ds = DREAMSettings(self.ds)
         self.ds.fromOutput(out)
         return do
+
 
     def _setInitialProfiles(self):
         """
@@ -400,6 +415,7 @@ class DREAMSimulation(Simulation):
             self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
             self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
 
+
     def _runMMI(self):
         """
         Injects neutral gas and run a short ionization simulation to allow them
@@ -423,12 +439,11 @@ class DREAMSimulation(Simulation):
         do = self._getDREAMOutput('1', NT_IONIZ, TMAX_IONIZ)
         return do
 
+
     def _run(self, out=None, verbose=None, ntmax=None, getTmax=False):
         """
         Run single simulation from DREAMSettings object and handles crashes.
         """
-        if getTmax:
-            assert self.mode == TQ_MODE_PERTURB
 
         do = None
         if verbose is None:
@@ -437,22 +452,9 @@ class DREAMSimulation(Simulation):
             quiet = (not verbose)
 
         try:
-            if self.mode == TQ_MODE_EXPDECAY:
-                do = runiface(self.ds, out, quiet=quiet)
-                utils.checkElectronDensityRatio(do, exc=SimulationException)
-                return do
-
-            elif self.mode == TQ_MODE_PERTURB:
-                sim = dreampyface.setup_simulation(self.ds)
-                do = sim.run()
-                utils.checkElectronDensityRatio(do, exc=SimulationException)
-                if getTmax:
-                    return do, sim.getMaxTime()
-                else:
-                    return do
-
-            else:
-                raise AttributeError(f'Unrecognized mode: {self.mode}.')
+            do = runiface(self.ds, out, quiet=quiet)
+            utils.checkElectronDensityRatio(do, exc=SimulationException)
+            return do
 
         except DREAMException as err:
             if self.handleCrash:
@@ -491,7 +493,7 @@ class DREAMSimulation(Simulation):
 def main():
 
 
-    s = DREAMSimulation(mode=TQ_MODE_EXPDECAY)
+    s = DREAMSimulation(mode=TQ_MODE_TRANSPORT)
     s.configureInput(nNe=1e18, nD2=2e20)
 
     s.run(handleCrash=False)
