@@ -8,7 +8,7 @@ sys.path.append(os.path.abspath('..'))
 import utils
 from DREAM import DREAMOutput
 from DREAMSimulation import DREAMSimulation
-from simulationException import SimulationException
+from DREAMSimulation import MaximumIterationsException
 
 OUTPUT_DIR = 'outputs/'
 LOG_PATH = 'scan_test.log'
@@ -57,7 +57,7 @@ def main():
 
             try:
                 s.run(handleCrash=True)
-            except SimulationException:
+            except MaximumIterationsException:
                 print('Skipping this simulation.')
             else:
                 tCQ  = s.output.getCQTime()
