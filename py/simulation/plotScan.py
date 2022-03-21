@@ -17,20 +17,26 @@ def main():
     nD, nNe, I_re = [], [], []
     nD_, nNe_, tCQ_ = [], [], []
 
+    if not os.path.exists(LOG_PATH):
+        raise FileNotFoundError(f'The log file {LOG_PATH} does not exist!')
+
     # Set up data log
-    if os.path.exists(LOG_PATH):
-        with open(LOG_PATH) as fp:
-            while line := fp.readline():
-                data = line.rstrip().replace(',', '').split()[-5:]
+    with open(LOG_PATH) as fp:
+        while line := fp.readline():
+            data = line.rstrip().replace(',', '').split()[-5:]
 
-                nNe.append(float(data[0]))
-                nD.append(float(data[1]))
-                I_re.append(float(data[4]))
+            nNe.append(float(data[0]))
+            nD.append(float(data[1]))
+            I_re.append(float(data[4]))
 
-                if not data[3] == 'inf':
-                    nNe_.append(float(data[0]))
-                    nD_.append(float(data[1]))
-                    tCQ_.append(float(data[3]))
+            if not data[3] == 'inf':
+                nNe_.append(float(data[0]))
+                nD_.append(float(data[1]))
+                tCQ_.append(float(data[3]))
+
+
+    if len(nD) == 0:
+        raise EOFError(f'No data in {LOG_PATH}')
 
 
     fig, ax = plt.subplots()
