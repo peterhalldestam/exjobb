@@ -86,7 +86,7 @@ class PowellOptimization(Optimization):
         lineBounds = (xin, xip)
         lp = xip * np.linalg.norm(u)
 
-        return (-SMALL, lp/10), lineBounds
+        return (-SMALL, lp/20), lineBounds
 
     def _findBracket(self, fun, b0, bounds, gamma=2, verbose=False):
         """
@@ -113,7 +113,6 @@ class PowellOptimization(Optimization):
             fa = dum
 
             swap = True
-            print('Swap done')
 
         cx = bx + gamma*(bx-ax)
         fc = fun(cx)

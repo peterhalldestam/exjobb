@@ -31,9 +31,9 @@ lowerBound = (2e20, 0.)
 upperBound = (3e22, 12e18)
 
 po = PowellOptimization(simulation=DREAMSimulation, parameters=parameters, verbose=True,
-                        obFun=obFun, maxIter = 5,
+                        obFun=obFun, maxIter = 3,
                         upperBound=upperBound, lowerBound=lowerBound,
-                        linemin = LINEMIN_BRENT, powellType = POWELL_TYPE_RESET)
+                        linemin = LINEMIN_BRENT, powellType = POWELL_TYPE_DLD)
 
 output = po.run()
 print(output)
