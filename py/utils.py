@@ -67,10 +67,10 @@ def join(dataStr: str, *dos: DREAMOutput, time=False, radius=False) -> np.ndarra
 
         obj = np.array(obj)
         if not i:
-            q = np.array(obj)
+            q = np.array(obj[1:])
 
             if radius:
-                return q
+                return np.array(obj)
         else:
             q = np.append(q, t + obj[1:], axis=0)
         if time:
@@ -99,11 +99,8 @@ def visualizeTemperature(r, T, times=[0,-1], ax=None, show=False):
     if ax is None:
         ax = plt.axes()
 
-    # change units
-    T *= 1e-3   # eV to keV
-
     for ti in times:
-        ax.plot(r, T[ti,:], label=ti)
+        ax.plot(r, T[ti,:] * 1e-3, label=ti)
 
     ax.legend(title='Timestep indices:')
     ax.set_xlabel('minor radius (m)')
@@ -128,12 +125,8 @@ def visualizeTemperatureEvolution(t, T, radii=[0], ax=None, show=False):
     if ax is None:
         ax = plt.axes()
 
-    # change units
-    # T *= 1e-3   # eV to keV
-    # t *= 1e3    # s to ms
-
     for ri in radii:
-        ax.plot(t, T[:,ri], label=ri)
+        ax.loglog(t * 1e3, T[:,ri] * 1e-3, label=ri)
 
     ax.legend(title='Radial node indices:')
     ax.set_xlabel('time (ms)')
@@ -158,14 +151,9 @@ def visualizeCurrents(t, I_ohm, I_re, I_tot, log=False, ax=None, show=False):
     if ax is None:
         ax = plt.axes()
 
-    # change units
-    t *= 1e3        # s to ms
-    # I_re *= 1e-6    # A to MA
-    # I_ohm *= 1e-6
-
-    ax.plot(t, I_ohm, 'r', label='Ohmic')
-    ax.plot(t, I_re,  'b', label='REs')
-    ax.plot(t, I_tot, 'k', label='total')
+    ax.plot(t * 1e3, I_ohm * 1e-6, 'r', label='Ohmic')
+    ax.plot(t * 1e3, I_re * 1e-6,  'b', label='REs')
+    ax.plot(t * 1e3, I_tot * 1e-6, 'k', label='total')
 
     ax.legend(title='Currents:')
     ax.set_xlabel('time (ms)')
