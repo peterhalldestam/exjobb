@@ -86,7 +86,7 @@ class PowellOptimization(Optimization):
         lineBounds = (xin, xip)
         lp = xip * np.linalg.norm(u)
 
-        return (-SMALL, lp/20), lineBounds
+        return (-SMALL, lp/10), lineBounds
 
     def _findBracket(self, fun, b0, bounds, gamma=2, verbose=False):
         """

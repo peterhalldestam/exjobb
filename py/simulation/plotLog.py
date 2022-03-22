@@ -16,4 +16,5 @@ if len(sys.argv) == 2:
     
     print('\nMaximal runaway current'.ljust(26) + ' = ' + f'{s.output.getMaxRECurrent()*1e-6:.3} MA'.rjust(10))
     print('Current quench time'.ljust(25) + ' = ' + f'{s.output.getCQTime()*1e3:.4} ms'.rjust(10))
+    print('Transported fraction'.ljust(25) + ' = ' + f'{s.output.getTransportedFraction():.2}'.rjust(10))
     s.output.visualizeCurrents(show=True)

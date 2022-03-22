@@ -15,16 +15,18 @@ def logisticFunction(x, x0, k):
 def obFun(output):
     t_CQ = output.getCQTime()
     I_re_max = output.getMaxRECurrent()
+    transFrac = output.getTransportedFraction()
 
     I_crit = 150e3      # [A]
     t_CQ_min = 50e-3    # [s]
     t_CQ_max = 150e-3   # [s]
     k = 3e2             # [s^-1]
 
-    cost_I = I_re_max / I_crit
+    cost_I = (I_re_max - I_crit) / I_crit * np.heaviside(I_re_max - I_crit, 0)
+    cost_Q = (transFrac-0.1)*np.heaviside(transFrac-0.1, 0)
     cost_t = logisticFunction(-t_CQ, -t_CQ_min, k) + logisticFunction(t_CQ, t_CQ_max, k)
 
-    return cost_I + 100*cost_t
+    return cost_I + 70*cost_Q + 100*cost_t
 
 parameters = {'nD2': 6e20, 'nNe': 8e18}#{'nD2': 1e22, 'nNe': 6e16}
 lowerBound = (2e20, 0.)
