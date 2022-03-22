@@ -38,12 +38,14 @@ MAX_RERUNS = 4          # Maximum number of reruns before raising SimulationExce
 # Number of radial nodes
 NR = 5
 
+
 # Maximum simulation time
 TMAX_TOT    =   1.5e-1
 
+
 # Enable transport of cold electrons and REs
 TRANSPORT_COLD  = True
-TRANSPORT_RE    = True
+TRANSPORT_RE    = False
 
 # Thermal quench modes
 TQ_MODE_EXPDECAY    = 1
@@ -116,7 +118,7 @@ class DREAMSimulation(Simulation):
         T2:     float = .99
 
         # Post TQ magnetic perturbation profile
-        dBB1:   float = 4e-4
+        dBB1:   float = 0.#4e-4
         dBB2:   float = 0.
 
     @dataclass(init=False)
@@ -128,23 +130,27 @@ class DREAMSimulation(Simulation):
         dos: DREAMOutput
 
         # Output quantities from DREAM output object
-        r:      np.ndarray  # radial grid
-        t:      np.ndarray  # simulation time
-        I_re:   np.ndarray  # RE current
-        I_ohm:  np.ndarray  # Ohmic current
-        I_tot:  np.ndarray  # total current
-        T_cold: np.ndarray  # cold electron temperature
+        r:          np.ndarray  # radial grid
+        t:          np.ndarray  # simulation time
+        I_re:       np.ndarray  # RE current
+        I_ohm:      np.ndarray  # Ohmic current
+        I_tot:      np.ndarray  # total current
+        T_cold:     np.ndarray  # cold electron temperature
+        P_trans:    np.ndarray  # rate of energyloss through plasma edge [J s^-1 m^-1]
+        P_rad:      np.ndarray  # radiated power density [J s^-1 m^-1]
 
         def __init__(self, *dos, close=True):
             """
             Constructor. Joins data from the provided DREAM output objects.
             """
-            self.t      = utils.join('grid.t', dos, time=True)
-            self.r      = utils.join('grid.r', dos, radius=True)
-            self.I_re   = utils.join('eqsys.j_re.current()', dos)
-            self.I_ohm  = utils.join('eqsys.j_ohm.current()', dos)
-            self.I_tot  = utils.join('eqsys.j_tot.current()', dos)
-            self.T_cold = utils.join('eqsys.T_cold.data', dos)
+            self.t          = utils.join('grid.t', dos, time=True)
+            self.r          = utils.join('grid.r', dos, radius=True)
+            self.I_re       = utils.join('eqsys.j_re.current()', dos)
+            self.I_ohm      = utils.join('eqsys.j_ohm.current()', dos)
+            self.I_tot      = utils.join('eqsys.j_tot.current()', dos)
+            self.T_cold     = utils.join('eqsys.T_cold.data', dos)
+            self.P_trans    = utils.join('other.scalar.energyloss_T_cold.data', dos, other=True)
+            self.P_rad      = utils.join('other.fluid.Tcold_radiation.integral()', dos, other=True)
 
             if close:
                 for do in dos:
@@ -180,13 +186,26 @@ class DREAMSimulation(Simulation):
             if t80 is not None and t20 is not None:
                 return (t20 - t80) / .6
             else:
-                return np.inf
+                return 1.#np.inf
 
         def getMaxRECurrent(self):
             """
             Returns the maximum runaway electron current.
             """
             return self.I_re.max()
+
+        def getTransportedFraction(self):
+            """
+            Returns the fraction of energyloss caused by transport through the plasma edge.
+            """
+
+            dt = self.t[1:] - self.t[:-1]
+
+            Q_trans = np.sum(self.P_trans[:,0] * dt)
+            Q_rad = np.sum(self.P_rad * dt)
+            Q_tot = Q_trans + Q_rad
+
+            return Q_trans/Q_tot
 
         def visualizeCurrents(self, log=False, ax=None, show=False):
             """
@@ -225,15 +244,16 @@ class DREAMSimulation(Simulation):
 
         ##### Generate the initialization simulation #####
         self.ds = DREAMSettings()
-        self.ds.other.include('fluid')
+        self.ds.other.include(['fluid', 'scalar'])
 
         # Set solver settings
-        self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
+        self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_MKL)
         self.ds.solver.setType(Solver.NONLINEAR)
         self.ds.solver.setMaxIterations(maxiter=500)
         self.ds.solver.tolerance.set(reltol=2e-6)
         self.ds.solver.tolerance.set(unknown='n_re', reltol=2e-6, abstol=1e5)
         self.ds.solver.tolerance.set(unknown='j_re', reltol=2e-6, abstol=1e-5) # j ~ e*c*n_e ~ n_e*1e-10 ?
+        self.ds.other.include(['fluid', 'scalar'])
 
         # Disable kinetic grids (we run purely fluid simulations)
         self.ds.hottailgrid.setEnabled(False)
@@ -520,7 +540,6 @@ class DREAMSimulation(Simulation):
 
 def main():
 
-
     s = DREAMSimulation(mode=TQ_MODE_TRANSPORT)
     s.configureInput(nNe=1.5e19, nD2=7e20)
 
@@ -532,6 +551,7 @@ def main():
     print(f'tCQ = {s.output.getCQTime()*1e3} ms')
     s.output.visualizeTemperatureEvolution(radii=[0,-1], show=True)
     s.output.visualizeCurrents(show=True)
+    s.output.getTransportedFraction()
 
     return 0
 
