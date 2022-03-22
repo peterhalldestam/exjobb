@@ -10,6 +10,7 @@ sys.path.append(os.path.abspath('..'))
 import utils
 import tokamaks.ITER as Tokamak
 from simulation import Simulation
+from simulationException import SimulationException
 
 try:
     import DREAM
@@ -17,7 +18,6 @@ except ModuleNotFoundError:
     import sys
     for dp in utils.DREAMPATHS:
         sys.path.append(dp)
-        # sys.path.append(f'{dp}/build/dreampyface/cxx/')
     import DREAM
 
 from DREAM import DREAMSettings, DREAMOutput, DREAMException, runiface
@@ -31,29 +31,38 @@ import DREAM.Settings.Equations.HotElectronDistribution as FHot
 import DREAM.Settings.Solver as Solver
 import DREAM.Settings.TransportSettings as Transport
 
-REMOVE_FILES = True
+CHECK_OUTPUT = True     # Check if n_re / n_cold > 1e-2 post simulation
+REMOVE_FILES = False     # Removes output files post simulation
+MAX_RERUNS = 4          # Maximum number of reruns before raising SimulationException
 
 # Number of radial nodes
 NR = 5
 
-# Number of time iterations in each step
-NT_IONIZ    = 1000
-NT_TQ       = 6000
-NT_CQ       = 8000
 
-# Amount of time (s) in each step
-TMAX_TOT    = 2e-1
+# Maximum simulation time
+TMAX_TOT    =   1.5e-1
+
+
+# Enable transport of cold electrons and REs
+TRANSPORT_COLD  = True
+TRANSPORT_RE    = True
+
+# Thermal quench modes
+TQ_MODE_EXPDECAY    = 1
+TQ_MODE_TRANSPORT   = 2
+
+# (TQ) Exponential decay settings
 TMAX_IONIZ  = 1e-6
 TMAX_TQ     = Tokamak.t0 * 8
+NT_IONIZ    = 1000
+NT_TQ       = 2000
+NT_CQ       = 6000
 
-
-
-
-# thermal quench settings
-EXP_DECAY = True
+# (TQ) Transport settings
 TQ_DECAY_TIME = Tokamak.t0
+TQ_STOP_FRACTION = 1 / 2000  # 20 kev -> 10 eV
 TQ_FINAL_TEMPERATURE = Tokamak.T_final
-TQ_INITIAL_dBB0 = 1.5e-3
+TQ_INITIAL_dBB0 = 3.5e-3
 
 SETTINGS_DIR    = 'settings/'
 OUTPUT_DIR      = 'outputs/'
@@ -61,6 +70,17 @@ OUTPUT_DIR      = 'outputs/'
 # Input parameter limits
 MAX_FUEL_DENSITY = 1e20
 MAX_INJECTED_DENSITY = 1e20
+
+# Custom exceptions
+class TransportException(SimulationException):
+    pass
+
+class MaximumIterationsException(SimulationException):
+    pass
+
+class DREAMCrashedException(SimulationException):
+    pass
+
 
 class DREAMSimulation(Simulation):
     """
@@ -73,7 +93,7 @@ class DREAMSimulation(Simulation):
     class Input(Simulation.Input):
         """
         Input parameters for the DREAM simulation. Defined below is the default
-        baseline values of each parameter, as well as domain intervals.
+        baseline values of each parameter.
         """
         # Fuel densities
         nH:     float = 0.
@@ -81,14 +101,14 @@ class DREAMSimulation(Simulation):
         nT:     float = .5 * Tokamak.ne0
         nHe:    float = 0.
 
-        # Injected ion densities & profiles
+        # Massive gas injection density profiles
         nD2:    float = 7 * Tokamak.ne0
         nNe:    float = .08 * Tokamak.ne0
         aD2:    float = 0.
         aNe:    float = 0.
         #...
 
-        # Initial current density
+        # Initial current density profile
         j1:     float = 1.
         j2:     float = .41
         Ip0:    float = Tokamak.Ip
@@ -117,7 +137,7 @@ class DREAMSimulation(Simulation):
         I_tot:  np.ndarray  # total current
         T_cold: np.ndarray  # cold electron temperature
 
-        def __init__(self, *dos):
+        def __init__(self, *dos, close=True):
             """
             Constructor. Joins data from the provided DREAM output objects.
             """
@@ -128,18 +148,28 @@ class DREAMSimulation(Simulation):
             self.I_tot  = utils.join('eqsys.j_tot.current()', dos)
             self.T_cold = utils.join('eqsys.T_cold.data', dos)
 
+            if close:
+                for do in dos:
+                    do.close()
+
+            if REMOVE_FILES:
+                paths = [OUTPUT_DIR + path for path in os.listdir(OUTPUT_DIR)]
+                for fp in paths:
+                    os.remove(fp)
+
             assert len(self.r) == NR
             assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
 
-        def _getTime(self, x):
+        def _getTime(self, arr, x):
             """
-            Returns the first time the Ohmic current is a fraction x of its
-            maximum value (should be t ~ 0).
+            Returns the first time an element in arr is a fraction x of its
+            maximum value.
             """
+            assert len(self.t) == len(arr)
             assert 0 < x < 1
-            I0 = self.I_ohm.max()
-            for t, I in zip(self.t, self.I_ohm):
-                if I <= x * I0:
+            val0 = arr.max()
+            for t, val in zip(self.t, arr):
+                if val <= x * val0:
                     return t
 
         def getCQTime(self):
@@ -147,8 +177,8 @@ class DREAMSimulation(Simulation):
             Tries to calculate the current quench time and returns it. If unable
             it will return infinity.
             """
-            t80 = self._getTime(.8)
-            t20 = self._getTime(.2)
+            t80 = self._getTime(self.I_ohm, .8)
+            t20 = self._getTime(self.I_ohm, .2)
             if t80 is not None and t20 is not None:
                 return (t20 - t80) / .6
             else:
@@ -180,17 +210,20 @@ class DREAMSimulation(Simulation):
 
     ############## DISRUPTION SIMULATION SETUP ##############
 
-    def __init__(self, id='out', verbose=True, **inputs):
+    def __init__(self, mode=TQ_MODE_EXPDECAY, id='out', verbose=True, **inputs):
         """
         Constructor. Core simulation settings. No input parameters are used here.
         """
         super().__init__(id=id, verbose=verbose, **inputs)
 
+        self.mode = mode
+
         self.ds = None      # This will be updated for each subsequent simulation.
         self.do = None      # We need access to do.grid.integrate()
 
         self.handleCrash = True
-        self.maxReruns   = 3
+
+        self.tStop = None   # Used for debuggin in TQ_MODE_TRANSPORT (perhaps we don't need this...)
 
         ##### Generate the initialization simulation #####
         self.ds = DREAMSettings()
@@ -230,6 +263,123 @@ class DREAMSimulation(Simulation):
         Tokamak.setMagneticField(self.ds, nr=NR)
 
 
+    def run(self, handleCrash=None):
+        """
+        Runs the simulation and creates single simulation Output object from
+        several DREAM output objects. By default it runs an exponential decay
+        for the thermal quench and then switches to a self consistent evolution
+        of temperature. If this DREAMSimulation is initialized with the mode
+        TQ_MODE_TRANSPORT, it will instead run a thermal quench induced by a perturbed
+        magnetic field.
+
+        :param handleCrash:     If True, any crashed simulation are rerun in
+                                higher resolution in time, until a maximum
+                                number of MAX_RERUNS is performed. Then the
+                                simulation output is left as None.
+        """
+        assert self.output is None, 'Output object already exists!'
+
+        if handleCrash is not None:
+            self.handleCrash = handleCrash
+
+        self._setInitialProfiles()
+
+        ## PRESCRIBED EXPONENTIAL DECAYING TEMPERATURE
+        if self.mode == TQ_MODE_EXPDECAY:
+
+            # Set exponential decaying temperature
+            t, r, T = Tokamak.getTemperatureEvolution(self.input.T1, self.input.T2, tau0=TQ_DECAY_TIME, T_final=TQ_FINAL_TEMPERATURE, tmax=TMAX_TQ)#, nt=NT_TQ)
+            self.ds.eqsys.T_cold.setPrescribedData(T, radius=r, times=t)
+
+            # Massive material injection
+            do1 = self._runMMI('1', NT_IONIZ, TMAX_IONIZ)
+
+            # run TQ part of simulation
+            do2 = self._getDREAMOutput('2', NT_TQ, TMAX_TQ - TMAX_IONIZ)
+
+            # Change to self consistent temperature evolution
+            self.ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
+
+            # Set transport settings
+            r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, self.input.dBB1, self.input.dBB2)
+            self._setTransport(dBB, r, NT_CQ, TMAX_TOT - TMAX_TQ - TMAX_IONIZ)
+
+            # Run CQ and runaway plateau part of simulation
+            do3 = self._getDREAMOutput('3', NT_CQ, TMAX_TOT - TMAX_TQ - TMAX_IONIZ)
+
+            # Set output from DREAM output
+            self.output = self.Output(do1, do2, do3)
+
+
+        ## TRANSPORT INDUCED THERMAL QUENCH
+        elif self.mode == TQ_MODE_TRANSPORT:
+
+            # Set inital temperature
+            rT, T = Tokamak.getInitialTemperature(self.input.T1, self.input.T2)
+            self.ds.eqsys.T_cold.setInitialProfile(T, radius=rT)
+
+            # Set to self consistent temperature evolution
+            self.ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
+
+            # Set the initial magnetic pertubation
+            r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, TQ_INITIAL_dBB0, 0)
+            self._setTransport(dBB, r, NT_IONIZ, TMAX_IONIZ)
+
+            # Massive material injection
+            do1 = self._runMMI('1', NT_IONIZ, TMAX_IONIZ)
+
+            # Test run TQ and obtain time when the temperature reaches a certain value
+            do2 = self._getDREAMOutput('2', NT_TQ, TMAX_TQ - TMAX_IONIZ)
+            tmpOut = self.Output(do1, do2, close=False)
+            tmax = tmpOut._getTime(tmpOut.T_cold[:,0], TQ_STOP_FRACTION)
+            do2.close()
+
+            if tmax is None:
+                msg = f'Final core temperature {tmpOut.T_cold[-1,0]} did not reach {tmpOut.T_cold[0,0] * TQ_STOP_FRACTION}'
+                raise TransportException(msg)
+            else:
+                self.tStop = tmax
+
+            # Restart TQ simulation and stop at tmax
+            out_ioniz = self._getFileName('1', OUTPUT_DIR)
+            self.ds = DREAMSettings(self.ds)
+            self.ds.fromOutput(out_ioniz)
+            do3 = self._getDREAMOutput('3', NT_TQ, self.tStop - TMAX_IONIZ)
+
+            # Set the final magnetic pertubation
+            r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, TQ_INITIAL_dBB0*1e-1, 0)
+            self._setTransport(dBB, r,  NT_CQ, TMAX_TOT - self.tStop - TMAX_IONIZ)
+
+            # Run CQ and runaway plateau part of simulation
+            do4 = self._getDREAMOutput('4', NT_CQ, TMAX_TOT - self.tStop - TMAX_IONIZ)
+
+            # Set output from DREAM output
+            self.output = self.Output(do1, do3, do4)
+
+        else:
+            raise AttributeError(f'Unexpected mode value mode={self.mode}.')
+
+
+        return 0
+
+
+    ###### SIMULATION HELPER FUNCTIONS #######
+
+    def _getDREAMOutput(self, name, nt, tmax):
+        """
+        Runs DREAM simulation with given time resolution options and returns the
+        resulting DREAM output object.
+        """
+        self.ds.timestep.setNt(nt)
+        self.ds.timestep.setTmax(tmax)
+        out = self._getFileName(name, OUTPUT_DIR)
+        self.ds.output.setFilename(out)
+        do = self._run(out=out)
+        self.ds = DREAMSettings(self.ds)
+        self.ds.fromOutput(out)
+        return do
+
+
     def _setInitialProfiles(self):
         """
         Set initial profiles from input parameters.
@@ -238,9 +388,9 @@ class DREAMSimulation(Simulation):
         if self.input.nH:
             self.ds.eqsys.n_i.addIon('H', n=self.input.nH, Z=1, Z0=1, hydrogen=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
         if self.input.nD:
-            self.ds.eqsys.n_i.addIon('D', n=self.input.nD, Z=1, Z0=1, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+            self.ds.eqsys.n_i.addIon('D', n=self.input.nD, Z=1, Z0=1, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_TRANSPARENT)
         if self.input.nT:
-            self.ds.eqsys.n_i.addIon('T', n=self.input.nT, Z=1, Z0=1, tritium=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+            self.ds.eqsys.n_i.addIon('T', n=self.input.nT, Z=1, Z0=1, tritium=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_TRANSPARENT)
             self.ds.eqsys.n_re.setTritium(True)
         if self.input.nHe:
             raise NotImplementedError('Helium is not yet implemented...')
@@ -275,7 +425,33 @@ class DREAMSimulation(Simulation):
         self.ds.eqsys.j_ohm.setInitialProfile(j, radius=rj, Ip0=self.input.Ip0)
 
 
-    def _runInjectionIonization(self):
+    def _setTransport(self, dBB, r, nt, tmax):
+        """
+        Configures the transport settings.
+        """
+        assert dBB.shape == r.shape
+
+        t = np.linspace(0, tmax, nt)
+
+        if TRANSPORT_COLD: # Enable radial transport of cold electrons
+            self.ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
+            self.ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB[0])#=np.tile(dBB, (nt, 1)), r=r, t=t)
+
+        if TRANSPORT_RE: # Enable radial transport of REs
+            # Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
+            # Drr = np.tile(Drr, (nt,1,1,1))
+            Drr = utils.getDiffusionOperator(dBB, R0=Tokamak.R0, svensson=False)
+            self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+            self.ds.eqsys.n_re.transport.prescribeDiffusion(Drr[0])
+            # self.ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
+            # self.ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
+            #
+            # # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
+            # self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
+            # self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+
+
+    def _runMMI(self, name, nt, tmax):
         """
         Injects neutral gas and run a short ionization simulation to allow them
         to settle.
@@ -284,159 +460,49 @@ class DREAMSimulation(Simulation):
         if self.input.nD2:
             r, n = utils.getDensityProfile(self.do, self.input.nD2, self.input.aD2)
             self.ds.eqsys.n_i.addIon('D2', Z=1, iontype=Ions.IONS_DYNAMIC, Z0=0, n=n, r=r,
-            opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
+            opacity_mode=Ions.ION_OPACITY_MODE_TRANSPARENT)
 
         if self.input.nNe:
             r, n = utils.getDensityProfile(self.do, self.input.nNe, self.input.aNe)
             self.ds.eqsys.n_i.addIon('Ne', Z=10, iontype=Ions.IONS_DYNAMIC, Z0=0, n=n, r=r)
 
-        out = self._getFileName('1', OUTPUT_DIR)
-        self.ds.output.setFilename(out)
-        do = self._run(out=out)
-
-        self.ds = DREAMSettings(self.ds)
-        self.ds.clearIgnore()
-        self.ds.fromOutput(out)
-        return do
-
-    def _setSvenssonTransport(self, dBB, r):
-        """
-        Configures the Svensson transport settings.
-        """
-        assert dBB.shape == r.shape
-
-        # Enable self consistent temperature evolution
-        self.ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
-        self.ds.eqsys.T_cold.setRecombinationRadiation(Temperature.RECOMBINATION_RADIATION_NEGLECTED)
-
-        # tmax = self.ds.timestep.tmax
-        # nt = self.ds.timestep.nt
-        #
-        # # Enable magnetic pertubations that will allow for radial transport
-        # t = np.linspace(0, tmax, nt)
-
-        # self.ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-        # self.ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=np.tile(dBB, (nt, 1)), r=r, t=t)
-
-        # Rechester-Rosenbluth diffusion operator
-        # Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
-        # Drr = np.tile(Drr, (nt,1,1,1))
-        #
-        # self.ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
-        # self.ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
-        #
-        # # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
-        # self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
-        # self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
-
-
-    def _runExpDecayTQ(self):
-        """
-        Run an exponential decay thermal quench (prescribed temperature evolution)
-        """
-
-        # Set prescribed temperature evolution
-        self.ds.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
-
-        # Set exponential-decay temperature
-        t, r, T = Tokamak.getTemperatureEvolution(self.input.T1, self.input.T2, tau0=TQ_DECAY_TIME, T_final=TQ_FINAL_TEMPERATURE, tmax=TMAX_TQ)#, nt=NT_TQ)
-        self.ds.eqsys.T_cold.setPrescribedData(T, radius=r, times=t)
-
         self.ds.solver.tolerance.set(reltol=1e-2)
-        self.ds.solver.setMaxIterations(maxiter=500)
-        self.ds.timestep.setTmax(TMAX_IONIZ)
-        self.ds.timestep.setNt(NT_IONIZ)
 
-        do1 = self._runInjectionIonization()
-
-        # Set TQ time stepper settings
-        self.ds.timestep.setNt(NT_TQ)
-        self.ds.timestep.setTmax(TMAX_TQ - TMAX_IONIZ)
-
-        # run TQ part of simulation
-        out = self._getFileName('2', OUTPUT_DIR)
-        self.ds.output.setFilename(out)
-        do2 = self._run(out=out)
-        self.ds = DREAMSettings(self.ds)
-        self.ds.fromOutput(out)
-
-        ##### Post-TQ (self consistent temperature evolution) #####
-
-        # Set CQ/post-TQ time stepper settings
-        self.ds.timestep.setNt(NT_CQ)
-        self.ds.timestep.setTmax(TMAX_TOT - TMAX_TQ - TMAX_IONIZ)
-
-        # # Change to self consistent temperature and set external magnetic pertubation
-        r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, self.input.dBB1, self.input.dBB2)
-        self._setSvenssonTransport(dBB, r)
-
-        # run final part of simulation
-        out = self._getFileName('3', OUTPUT_DIR)
-        self.ds.output.setFilename(out)
-        do3 = self._run(out=out)
-
-        # Set output
-        self.output = self.Output(do1, do2, do3)
-        return 0
-
-    def _runPerturbTQ(self):
-        raise NotImplementedError('TQ_PERTURB is not yet implemented...')
-
-        # Set edge vanishing TQ magnetic pertubation
-        r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, TQ_INITIAL_dBB0, -1/Tokamak.a**2)
-        self._setSvenssonTransport(dBB, r)
-
-        # ds1.timestep.setTerminationFunction(lambda s: terminate(s, TSTOP))
-        # self.run(dreampyface=True)
-
-        # self.ds = DREAMSettings(self.ds1)
-        #...
+        return self._getDREAMOutput(name, nt, tmax)
 
 
-
-    def _run(self, out=None, verbose=None, ntmax=None):
+    def _run(self, out=None, verbose=None, ntmax=None, getTmax=False):
         """
-        Run simulation and handle crashes.
+        Run single simulation from DREAMSettings object and handles crashes.
         """
+
         do = None
         if verbose is None:
             quiet = (not self.verbose)
         else:
             quiet = (not verbose)
 
-        global EXP_DECAY
-        if EXP_DECAY:
-            try:
-                do = runiface(self.ds, out, quiet=quiet)
-            except DREAMException as err:
-                if self.handleCrash:
-                    tmax = self.ds.timestep.tmax
-                    nt = self.ds.timestep.nt
-                    if ntmax is None:
-                        ntmax = 2**self.maxReruns * max(NT_IONIZ, NT_TQ, NT_CQ)
-                    if nt >= ntmax:
-                        print(err)
-                        print('ERROR : Skipping this simulation!')
-                    else:
-                        print(err)
-                        print(f'WARNING : Number of iterations is increased from {nt} to {2*nt}!')
-                        self.ds.timestep.setNt(2*nt)
-                        do = self._run(out=out, verbose=verbose, ntmax=ntmax)
+        try:
+            do = runiface(self.ds, out, quiet=quiet)
+            utils.checkElectronDensityRatio(do, exc=SimulationException)
+            return do
+
+        except DREAMException as err:
+            if self.handleCrash:
+                tmax = self.ds.timestep.tmax
+                nt = self.ds.timestep.nt
+                if ntmax is None:
+                    ntmax = 2**MAX_RERUNS * max(NT_IONIZ, NT_TQ, NT_CQ)
+                if nt >= ntmax:
+                    raise MaximumIterationsException('ERROR: MAXIMUM NUMBER OF RERUNS REACHED!') from err
                 else:
-                    raise err
-        else:
-            try:
-                import dreampyface
-                s = dreampyface.setup_simulation(self.ds)
-                do = s.run()
+                    print(err)
+                    print(f'WARNING : Number of iterations is increased from {nt} to {2*nt}!')
+                    self.ds.timestep.setNt(2*nt)
+                    return self._run(out=out, verbose=verbose, ntmax=ntmax)
+            else:
+                raise DREAMCrashedException('ERROR: DREAM CRASHED!') from err
 
-            # Set to exponential decay in TQ if dreampyface doesn't exist
-            except ModuleNotFoundError as err:
-                EXP_DECAY = True
-                print('ERROR: Python module dreampyface not found. Switchin to exp-decay...')
-                do = self._run(out=out, verbose=verbose, ntmax=ntmax)
-
-        return do
 
     def _getFileName(self, io, dir):
         """
@@ -453,57 +519,21 @@ class DREAMSimulation(Simulation):
         return str(fp.absolute())
 
 
-    def run(self, handleCrash=None):
-        """
-        Runs the simulation and return a single simulation Output object from
-        several DREAM output objects, which are joined during during initialization.
 
-        :param handleCrash:     If True, any crashed simulation are rerun in
-                                higher resolution in time, until some max number
-                                of iterations is reached.
-        """
-        assert self.output is None, 'Output object already exists!'
-
-        if handleCrash is not None:
-            self.handleCrash = handleCrash
-
-        self._setInitialProfiles()
-
-        if EXP_DECAY:
-            self._runExpDecayTQ()
-        else:
-            self._runPerturbTQ()
-
-
-        if REMOVE_FILES:
-            paths = [OUTPUT_DIR + path for path in os.listdir(OUTPUT_DIR)]
-            for fp in paths:
-                os.remove(fp)
-
-        return 0
 
 def main():
 
-    # Set to exponential decay in TQ if dreampyface doesn't exist
-    global EXP_DECAY
-    if not EXP_DECAY:
-        try:
-            import dreampyface
-        except ModuleNotFoundError as err:
-            EXP_DECAY = True
-            print('ERROR: Python module dreampyface not found. Switching to exp-decay...')
+    s = DREAMSimulation(mode=TQ_MODE_TRANSPORT)
+    s.configureInput(nNe=1.5e19, nD2=7e20)
 
-    s = DREAMSimulation()
-    s.configureInput(nNe=s.input.nNe / 2)
-    s.run(handleCrash=True)
+    s.run(handleCrash=False)
 
-    print('tCQ =', s.output.getCQTime(), 's')
+    if s.mode == TQ_MODE_TRANSPORT:
+        print(f'tTQ ~ {s.tStop*1e3} ms')
+
+    print(f'tCQ = {s.output.getCQTime()*1e3} ms')
+    s.output.visualizeTemperatureEvolution(radii=[0,-1], show=True)
     s.output.visualizeCurrents(show=True)
-
-    if REMOVE_FILES:
-        paths = [OUTPUT_DIR + path for path in os.listdir(OUTPUT_DIR)]
-        for fp in paths:
-            os.remove(fp)
 
     return 0
 
