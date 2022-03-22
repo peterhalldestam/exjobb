@@ -11,18 +11,21 @@ from DREAMSimulation import DREAMSimulation
 from DREAMSimulation import MaximumIterationsException
 
 OUTPUT_DIR = 'outputs/'
-LOG_PATH = 'scan_test.log'
+LOG_PATH = 'scan5.log'
 
 
-N_NEON      = 20
-N_DEUTERIUM = 20
+N_NEON      = 5
+N_DEUTERIUM = 5
 
 # log10
-MIN_DEUTERIUM, MAX_DEUTERIUM    = 20, 22 + np.log10(1.6)
-MIN_NEON, MAX_NEON              = 17, 20
+MIN_DEUTERIUM, MAX_DEUTERIUM    = 18, 23
+MIN_NEON, MAX_NEON              = 17, 21
 
 DEUTERIUM_DENSITIES = np.logspace(MIN_DEUTERIUM, MAX_DEUTERIUM, N_DEUTERIUM)
 NEON_DENSITIES      = np.logspace(MIN_NEON, MAX_NEON, N_NEON)
+
+def constrain(x, y):
+    return 45 < np.log10(x) + 3/2 * np.log10(y) < 53
 
 def removeOutputFiles():
     """
@@ -46,25 +49,25 @@ def main():
         pass
 
     # Run simulations
-    for iNe, nNe in enumerate(NEON_DENSITIES):
-        for iD, nD in enumerate(DEUTERIUM_DENSITIES):
+    scanSpace = [(n1, n2) for n1 in DEUTERIUM_DENSITIES for n2 in NEON_DENSITIES if constrain(n1, n2)]
 
-            i = iNe * N_DEUTERIUM + iD
-            print(f'Running simulation {i+1}/{N_NEON * N_DEUTERIUM}')
+    for i, (nD, nNe) in enumerate(scanSpace):
 
-            s = DREAMSimulation(verbose=False)
-            s.configureInput(nNe=nNe, nD2=nD)
+        print(f'Running simulation {i+1}/{len(scanSpace)}')
 
-            try:
-                s.run(handleCrash=True)
-            except MaximumIterationsException:
-                print('Skipping this simulation.')
-            else:
-                tCQ  = s.output.getCQTime()
-                I_re = s.output.getMaxRECurrent()
-                logging.info(f'{i},\t{nNe},\t{nD} => {tCQ:2.5},\t{I_re:10.3}')
-            finally:
-                removeOutputFiles()
+        s = DREAMSimulation(verbose=True)
+        s.configureInput(nNe=nNe, nD2=nD)
+
+        try:
+            s.run(handleCrash=True)
+        except MaximumIterationsException:
+            print('Skipping this simulation.')
+        else:
+            tCQ  = s.output.getCQTime()
+            I_re = s.output.getMaxRECurrent()
+            logging.info(f'{i+1}/{len(scanSpace)},\t{nNe},\t{nD} => {tCQ:2.5},\t{I_re:10.3}')
+        finally:
+            removeOutputFiles()
 
     return 0
 
