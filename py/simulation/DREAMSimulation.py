@@ -431,8 +431,9 @@ class DREAMSimulation(Simulation):
         t = np.linspace(0, tmax, nt)
 
         if TRANSPORT_COLD: # Enable radial transport of cold electrons
+            dBB_ = dBB * np.sqrt(Tokamak.R0)
+            self.ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=np.tile(dBB_, (nt, 1)), r=r, t=t)
             self.ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-            self.ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=np.tile(dBB, (nt, 1)), r=r, t=t)
 
         if TRANSPORT_RE: # Enable radial transport of REs
             Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
