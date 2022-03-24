@@ -167,11 +167,10 @@ def visualizeCurrents(t, I_ohm, I_re, I_tot, log=False, ax=None, show=False):
 
     return ax
 
-def getQuadraticMagneticPerturbation(ds, dBB0, dBB1):
+def getQuadraticMagneticPerturbation(ds, dBB1, dBB2):
     """
     Returns a quadratic profile for the magnetic pertubation, given the
-    paramaters dBB0 (defining the integral of dBB) and dBB1. The latter controls
-    the profile shape: dBB(r) ~ 1 + dBB1 * r^2.
+    paramaters dBB1 and dBB2.
     """
     try:
         r = np.linspace(0, ds.radialgrid.a, ds.radialgrid.nr)
@@ -179,7 +178,7 @@ def getQuadraticMagneticPerturbation(ds, dBB0, dBB1):
     except AttributeError as err:
         raise Exception('Settings object does not include needed data.') from err
 
-    dBB = dBB0 * (1 + dBB1 * r**2)
+    dBB = dBB1 * (1 + dBB2 * r**2)
     return r, dBB
 
 
