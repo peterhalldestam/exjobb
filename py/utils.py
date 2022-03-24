@@ -43,7 +43,7 @@ def checkElectronDensityRatio(do, exc=None, tol=1e-2):
         else:
             raise exc(msg)
 
-def join(dataStr: str, *dos: DREAMOutput, time=False, radius=False) -> np.ndarray:
+def join(dataStr: str, *dos: DREAMOutput, time=False, radius=False, other=False) -> np.ndarray:
     """
     Joins data obtained from any number of DREAM output objects in *dos.
     Recognizing axis 0 as the temporal dimension in every data array, this
@@ -53,7 +53,9 @@ def join(dataStr: str, *dos: DREAMOutput, time=False, radius=False) -> np.ndarra
     :param dos:         Any number of DREAM output objects ordered in time.
     :param time:        If true, the data arrays are treated as the simulation times.
     :param radius:      If true, return the radial grid from the first output.
+    :param other:       If true, the data is treated as an other quantity with no value at t=0.
     """
+
     t = 0
     q = np.array([])
     for i, do in enumerate(*dos):
@@ -72,7 +74,11 @@ def join(dataStr: str, *dos: DREAMOutput, time=False, radius=False) -> np.ndarra
             if radius:
                 return np.array(obj)
         else:
-            q = np.append(q, t + obj[1:], axis=0)
+            if other:
+                q = np.append(q, t + obj, axis=0)
+            else:
+                q = np.append(q, t + obj[1:], axis=0)
+
         if time:
             t += obj[-1]
     return q
