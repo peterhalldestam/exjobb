@@ -1,5 +1,5 @@
 """
-This script showcases how a tokamak distribution simulation is run using an
+This script showcases how a tokamak disruption simulation is run using an
 instance of the DREAMSimulation class, from which relevant output data is
 obtained. Here we vary the injected neon density, assumed to be homogeneously
 distributed in space. / Peter
