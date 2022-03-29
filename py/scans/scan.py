@@ -11,11 +11,11 @@ from DREAMSimulation import DREAMSimulation
 from DREAMSimulation import MaximumIterationsException
 
 OUTPUT_DIR = 'outputs/'
-LOG_PATH = 'scan5.log'
+LOG_PATH = 'test.log'
 
 
-N_NEON      = 5
-N_DEUTERIUM = 5
+N_NEON      = 1
+N_DEUTERIUM = 1
 
 # log10
 MIN_DEUTERIUM, MAX_DEUTERIUM    = 18, 23
@@ -40,8 +40,8 @@ def main():
     # Set up data log
     if os.path.exists(LOG_PATH):
         sys.exit(f'ERROR: {LOG_PATH} already exists!')
-    logging.basicConfig(filename=LOG_PATH, filemode='w', level=logging.INFO,
-                        format='%(asctime)s :\t %(message)s')
+    logging.basicConfig(filename=LOG_PATH, filemode='w', level=logging.INFO,format='%(asctime)s :\t %(message)s')
+    logging.info(f'format: current/total, nNe, nD, tCQ, I_re')
 
     try:
         removeOutputFiles()
@@ -65,7 +65,7 @@ def main():
         else:
             tCQ  = s.output.getCQTime()
             I_re = s.output.getMaxRECurrent()
-            logging.info(f'{i+1}/{len(scanSpace)},\t{nNe},\t{nD} => {tCQ:2.5},\t{I_re:10.3}')
+            logging.info(f'{i+1}/{len(scanSpace)},{nNe},{nD},{tCQ},{I_re}')
         finally:
             removeOutputFiles()
 

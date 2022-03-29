@@ -1,89 +1,102 @@
+import sys, os
+import numpy as np
+from dataclasses import dataclass
+
+from sim.DREAM.DREAMSimulation import DREAMSimulation
+
+import DREAM.Settings.Equations.ColdElectronTemperature as Temperature
 
 
-from DREAMSimulation import DREAMSimulation
+OUTPUT_ID = 'out_transport'
+OUTPUT_DIR = 'outputs/'
 
 
+TQ_DECAY_TIME           = 1e-3
+TQ_FINAL_TEMPERATURE    = 10  # 20 kev -> 10 eV
+
+TMAX_TOT    = 10e-2
+TMAX_IONIZ  = 1e-6
+TMAX_TQ     = 5e-3
+
+NT_IONIZ    = 1000
+NT_TQ       = 2000
+NT_CQ       = 2000
+
+    
 class ExponentialDecaySimulation(DREAMSimulation):
+    """
+    Disruption simulation with initially a prescribed exponential decaying
+    temperature to model the thermal quench.
+    """
 
-    @dataclass(init=False)
-    class Output(DREAMSimulation.Output):
-        """
-        Additional output variables other than what is defined in the superclass.
-        These are
-        """
-        P_trans:    np.ndarray  # rate of energyloss through plasma edge [J s^-1 m^-1]
-        P_rad:      np.ndarray  # radiated power density [J s^-1 m^-1]
-
-        def __init__(self, *dos, close=True):
-            self.P_trans    = utils.join('other.scalar.energyloss_T_cold.data', dos, other=True)
-            self.P_rad      = utils.join('other.fluid.Tcold_radiation.integral()', dos, other=True)
-            super().__init__(dos, close=close)
+    @dataclass
+    class Input(DREAMSimulation.Input):
+        """ Include DREAMSimulation input and TQ settings. """
+        TQ_decay_time:          float = TQ_DECAY_TIME
+        TQ_final_temperature:   float = TQ_FINAL_TEMPERATURE
 
         @property
-        def transportedFraction(self):
-            """
-            Fraction of energy loss caused by transport through the plasma edge.
-            """
-            dt = self.t[1:] - self.t[:-1]
-            Q_trans = np.sum(self.P_trans[:,0] * dt)
-            Q_rad = np.sum(self.P_rad * dt)
-            Q_tot = Q_trans + Q_rad
-            return Q_trans/Q_tot
+        def temperatureTQ(self):
+            """ Exponential decaying temperature during thermal quench. """
+            nt = 100
+            r, T0 = self.initialTemperature
+            T1 = self.TQ_final_temperature
+            t = np.linspace(0, TMAX_TQ, nt).reshape((nt,1))
+            T = T1 + (T0 - T1) * np.exp(-t / self.TQ_decay_time)
+            return t.reshape((nt,)), r, T
 
     #### DISRUPTION SIMULATION SETUP ######
 
     def  __init__(self, id='out_expDecay', verbose=True, **inputs):
-        """
-        Constructor.
-        """
+        """ Constructor. """
         super().__init__(id=id, verbose=verbose, **inputs)
-        self.ds.other.include(['scalar.energyloss_T_cold', 'fluid.Tcold_radiation'])
+
 
     def run(self, handleCrash=None):
-        """
-        Run simulation.
-        """
+        """ Run simulation. """
         assert self.output is None, 'Output object already exists!'
 
-        self._setInitialProfiles()
-        # Set inital temperature
-        rT, T = Tokamak.getInitialTemperature(self.input.T1, self.input.T2)
-        self.ds.eqsys.T_cold.setInitialProfile(T, radius=rT)
+        self.setInitialProfiles()
 
-        # Set to self consistent temperature evolution
-        self.ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
-
-        # Set the initial magnetic pertubation
-        r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, TQ_INITIAL_dBB0, 0)
-        self._setTransport(dBB, r, NT_IONIZ, TMAX_IONIZ)
+        # Set exponential decaying temperature
+        tT, rT, T = self.input.temperatureTQ
+        self.ds.eqsys.T_cold.setPrescribedData(T, radius=rT, times=tT)
 
         # Massive material injection
-        do1 = self._runMMI('1', NT_IONIZ, TMAX_IONIZ)
+        do1 = self.setMMI()
 
-        # Test run TQ and obtain time when the temperature reaches a certain value
-        do2 = self._getDREAMOutput('2', NT_TQ, TMAX_TQ - TMAX_IONIZ)
-        tmpOut = self.Output(do1, do2, close=False)
-        tmax = tmpOut._getTime(tmpOut.T_cold[:,0], TQ_STOP_FRACTION)
-        do2.close()
+        # Let the ions settle
+        do1 = self.runDREAM('1', NT_IONIZ, TMAX_IONIZ)
 
-        if tmax is None:
-            msg = f'Final core temperature {tmpOut.T_cold[-1,0]} did not reach {tmpOut.T_cold[0,0] * TQ_STOP_FRACTION}'
-            raise TransportException(msg)
-        else:
-            self.tStop = tmax
+        # run rest of TQ part of simulation
+        do2 = self.runDREAM('2', NT_TQ, TMAX_TQ - TMAX_IONIZ)
 
-        # Restart TQ simulation and stop at tmax
-        out_ioniz = self._getFileName('1', OUTPUT_DIR)
-        self.ds = DREAMSettings(self.ds)
-        self.ds.fromOutput(out_ioniz)
-        do3 = self._getDREAMOutput('3', NT_TQ, self.tStop - TMAX_IONIZ)
+        # Change to self consistent temperature evolution
+        self.ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
 
-        # Set the final magnetic pertubation
-        r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, self.input.dBB1, self.input.dBB2)
-        self._setTransport(dBB, r,  NT_CQ, TMAX_TOT - self.tStop - TMAX_IONIZ)
+        # Set transport settings
+        self.setTransport(self.input.dBB0, self.input.dBB1, NT_CQ, TMAX_TOT - TMAX_TQ - TMAX_IONIZ)
 
         # Run CQ and runaway plateau part of simulation
-        do4 = self._getDREAMOutput('4', NT_CQ, TMAX_TOT - self.tStop - TMAX_IONIZ)
+        do3 = self.runDREAM('3', NT_CQ, TMAX_TOT - TMAX_TQ - TMAX_IONIZ)
 
         # Set output from DREAM output
-        self.output = self.Output(do1, do3, do4)
+        self.output = self.Output(do1, do2, do3)
+
+
+def main():
+
+    s = ExponentialDecaySimulation()
+
+    # s.configureInput()
+    s.run(handleCrash=False)
+
+    print(f'tCQ = {s.output.currentQuenchTime*1e3} ms')
+
+    s.output.visualizeTemperatureEvolution(r=[0,-1], show=True)
+    s.output.visualizeCurrents(show=True)
+
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())

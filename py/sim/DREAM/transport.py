@@ -2,20 +2,25 @@ import sys, os
 import numpy as np
 from dataclasses import dataclass
 
-import utils
 from sim.DREAM.DREAMSimulation import DREAMSimulation
 
+from DREAM import DREAMSettings
 import DREAM.Settings.Equations.ColdElectronTemperature as Temperature
 
+OUTPUT_ID = 'out_transport'
+OUTPUT_DIR = 'outputs/'
 
-TQ_STOP_FRACTION = 1 / 2000  # 20 kev -> 10 eV
-TQ_INITIAL_dBB0 = 3.5e-3
 
+TQ_STOP_FRACTION    = 1 / 2000  # 20 kev -> 10 eV
+TQ_INITIAL_dBB0     = 4e-3
+
+TMAX_TOT    = 1e-2
 TMAX_IONIZ  = 1e-6
 TMAX_TQ     = 8e-3
+
 NT_IONIZ    = 1000
 NT_TQ       = 2000
-NT_CQ       = 6000
+NT_CQ       = 2000
 
 
 class TransportSimulation(DREAMSimulation):
@@ -23,6 +28,11 @@ class TransportSimulation(DREAMSimulation):
     Disruption simulation with the thermal quench driven by radial transport.
     """
 
+    @dataclass
+    class Input(DREAMSimulation.Input):
+        """ Include DREAMSimulation input and TQ settings. """
+        TQ_stop_fraction:   float = TQ_STOP_FRACTION
+        TQ_initial_dBB0:    float = TQ_INITIAL_dBB0
 
     @dataclass(init=False)
     class Output(DREAMSimulation.Output):
@@ -34,15 +44,19 @@ class TransportSimulation(DREAMSimulation):
         P_rad:      np.ndarray  # radiated power density [J s^-1 m^-1]
 
         def __init__(self, *dos, close=True):
+            """ Constructor. """
             self.P_trans    = utils.join('other.scalar.energyloss_T_cold.data', dos, other=True)
             self.P_rad      = utils.join('other.fluid.Tcold_radiation.integral()', dos, other=True)
-            super().__init__(dos, close=close)
+            super().__init__(*dos, close=close)
+
+        @property
+        def averageTemperature(self):
+            """ Spatially averaged cold electron temperature. """
+            return np.mean(self.T_cold, axis=1)
 
         @property
         def transportedFraction(self):
-            """
-            Fraction of energy loss caused by transport through the plasma edge.
-            """
+            """ Fraction of energy loss caused by transport through the plasma edge. """
             dt = self.t[1:] - self.t[:-1]
             Q_trans = np.sum(self.P_trans[:,0] * dt)
             Q_rad = np.sum(self.P_rad * dt)
@@ -51,38 +65,38 @@ class TransportSimulation(DREAMSimulation):
 
     #### DISRUPTION SIMULATION SETUP ######
 
-    def  __init__(self, transport_cold=True, transport_re=True, svensson=False, id='out_expDecay', verbose=True, **inputs):
-        """
-        Constructor.
-        """
+    def  __init__(self, transport_cold=True, transport_re=True, svensson=True, id=OUTPUT_ID, verbose=True, **inputs):
+        """ Constructor. """
         super().__init__(transport_cold=transport_cold, transport_re=transport_re, svensson=svensson, id=id, verbose=verbose, **inputs)
         self.ds.other.include(['scalar'])
 
 
     def run(self, handleCrash=None):
-        """
-        Run simulation.
-        """
+        """ Run simulation. """
         assert self.output is None, 'Output object already exists!'
 
-        self._setInitialProfiles()
-        # Set inital temperature
-        rT, T = self._getInitialTemperature()
-        self.ds.eqsys.T_cold.setInitialProfile(T, radius=rT)
+        self.setInitialProfiles()
 
         # Set to self consistent temperature evolution
         self.ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
 
+        # Set inital temperature
+        rT, T = self.input.initialTemperature
+        self.ds.eqsys.T_cold.setInitialProfile(T, radius=rT)
+
         # Set the initial magnetic pertubation
-        self._setTransport(TQ_INITIAL_dBB0, 0, NT_IONIZ, TMAX_IONIZ)
+        self.setTransport(self.input.TQ_initial_dBB0, 0, NT_IONIZ, TMAX_IONIZ)
 
         # Massive material injection
-        do1 = self._runMMI('1', NT_IONIZ, TMAX_IONIZ)
+        self.setMMI()
+
+        # Let the ions settle
+        do1 = self.runDREAM('1', NT_IONIZ, TMAX_IONIZ)
 
         # Test run TQ and obtain time when the temperature reaches a certain value
-        do2 = self._getDREAMOutput('2', NT_TQ, TMAX_TQ - TMAX_IONIZ)
+        do2 = self.runDREAM('2', NT_TQ, TMAX_TQ - TMAX_IONIZ)
         tmpOut = self.Output(do1, do2, close=False)
-        tmax = tmpOut._getTime(tmpOut.T_cold[:,0], TQ_STOP_FRACTION)
+        tmax = tmpOut.getTime(tmpOut.averageTemperature, self.input.TQ_stop_fraction)
         do2.close()
 
         if tmax is None:
@@ -92,16 +106,16 @@ class TransportSimulation(DREAMSimulation):
             self.tStop = tmax
 
         # Restart TQ simulation and stop at tmax
-        out_ioniz = self._getFileName('1', OUTPUT_DIR)
+        out_ioniz = self.getFilePath('1', OUTPUT_DIR)
         self.ds = DREAMSettings(self.ds)
         self.ds.fromOutput(out_ioniz)
-        do3 = self._getDREAMOutput('3', NT_TQ, self.tStop - TMAX_IONIZ)
+        do3 = self.runDREAM('3', NT_TQ, self.tStop - TMAX_IONIZ)
 
         # Set the final magnetic pertubation
-        self._setTransport(self.input.dBB1, self.input.dBB2,  NT_CQ, TMAX_TOT - self.tStop - TMAX_IONIZ)
+        self.setTransport(self.input.dBB0, self.input.dBB1,  NT_CQ, TMAX_TOT - self.tStop - TMAX_IONIZ)
 
         # Run CQ and runaway plateau part of simulation
-        do4 = self._getDREAMOutput('4', NT_CQ, TMAX_TOT - self.tStop - TMAX_IONIZ)
+        do4 = self.runDREAM('4', NT_CQ, TMAX_TOT - self.tStop - TMAX_IONIZ)
 
         # Set output from DREAM output
         self.output = self.Output(do1, do3, do4)
@@ -110,15 +124,16 @@ class TransportSimulation(DREAMSimulation):
 def main():
 
     s = TransportSimulation()
-    s.configureInput(nNe=1.5e19, nD2=7e20)
+
+    s.configureInput()
 
     s.run(handleCrash=False)
 
+    print(f'tCQ = {s.output.currentQuenchTime*1e3} ms')
+    print(f'transported fraction = {s.output.transportedFraction}')
 
-    print(f'tCQ = {s.output.getCQTime()*1e3} ms')
-    s.output.visualizeTemperatureEvolution(radii=[0,-1], show=True)
+    s.output.visualizeTemperatureEvolution(r=[0,-1], show=True)
     s.output.visualizeCurrents(show=True)
-    s.output.getTransportedFraction()
 
     return 0
 

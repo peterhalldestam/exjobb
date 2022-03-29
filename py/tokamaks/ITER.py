@@ -33,7 +33,7 @@ J2 = .5
 ne0 = 1e20  # electron density (m^-3)
 t0  = 1e-3#1e-3  # xponential decay time (s)
 T_initial = 2e4
-T_final = 50
+T_final = 10
 
 # Radial grid resolution
 NR = 101
@@ -56,9 +56,6 @@ def setMagneticField(ds, nr=40, visualize=False):
     r = np.linspace(0, a, nr)
 
     def f(a0, a1, a2, a3, a4):
-        """
-        Polynomial expansion a0 + a1 * r + a2 * r^2 + a3 * r^3 + a4 * r^4
-        """
         return np.polyval(np.flip([a0, a1, a2, a3, a4]), r)
 
     # Shaping parameters
@@ -111,57 +108,20 @@ def setMagneticField_(ds, nr=40, visualize=False):
     if visualize:
         ds.radialgrid.visualize(ntheta=200)
 
-def getInitialTemperature(T1, T2):
+def getInitialTemperature(T1, T2, nr=NR):
     """
     Returns the initial temperature profile.
     """
-    global a, NR
-
-    r = np.linspace(0, a, NR)
+    r = np.linspace(0, a, nr)
     T = T1 * (1 - T2 * (r/a)**2)
     return r, T
 
 
-def getFinalTemperature(T0=T_final):
-    """
-    Returns the final temperature profile.
-    """
-    global a, NR
 
-    r = np.linspace(0, a, NR)
-    T = T0*np.ones(NR)
-    # Flat temperature profile
-    return r, T
-
-
-def getTemperatureEvolution(T1, T2, tau0=t0, T_final=T_final, tmax=None, nt=100):
-    """
-    Returns the spatiotemporal temperature profile
-    """
-    r, T_i = getInitialTemperature(T1, T2)
-    _, T_f = getFinalTemperature()
-    # _, T_f = getInitialTemperature(T_final, T2)
-
-    if tmax is None:
-        tmax = -tau0 * np.log((100 - T_f[0]) / (T_i[0] - T_f[0]))
-        # tmax=6e-3
-
-    t = np.linspace(0, tmax, nt).reshape((nt,1))
-
-    T_i = T_i.reshape((1, r.size))
-    T_f = T_f.reshape((1, r.size))
-
-    T = T_f + (T_i - T_f) * np.exp(-t/tau0)
-    t = t.reshape((nt,))
-
-    return t, r, T
-
-
-def getInitialCurrentDensity(j1, j2, nr):
+def getInitialCurrentDensity(j1, j2, Ip, nr):
     """
     Returns the initial current density profile.
     """
-    global a
     r = np.linspace(0, a, nr)
     j = (1 - j1 * (r/a)**2) ** j2
-    return r, j
+    return r, j, Ip

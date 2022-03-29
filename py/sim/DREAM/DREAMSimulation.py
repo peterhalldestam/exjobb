@@ -1,5 +1,6 @@
 import sys, os
 import pathlib
+import traceback
 import numpy as np
 import matplotlib.pyplot as plt
 from dataclasses import dataclass, field
@@ -34,21 +35,19 @@ REMOVE_FILES = False     # Removes output files post simulation
 MAX_RERUNS = 4          # Maximum number of reruns before raising SimulationException
 
 # Number of radial nodes
-NR = 5
+NR = 2
 
 
 # Maximum simulation time
-TMAX_TOT    =   1.5e-1
+TMAX_TOT    =   1e-2
 
-
-INVERSE_WALL_TIME = 0
 
 # (TQ) Exponential decay settings
 TMAX_IONIZ  = 1e-6
 TMAX_TQ     = Tokamak.t0 * 8
-NT_IONIZ    = 1000
-NT_TQ       = 2000
-NT_CQ       = 6000
+NT_IONIZ    = 100
+NT_TQ       = 200
+NT_CQ       = 600
 
 # (TQ) Transport settings
 TQ_DECAY_TIME = Tokamak.t0
@@ -94,8 +93,8 @@ class DREAMSimulation(Simulation):
         # Massive gas injection density profiles
         nD2:    float = 7 * Tokamak.ne0
         nNe:    float = .08 * Tokamak.ne0
-        aD2:    float = 0.
-        aNe:    float = 0.
+        cD2:    float = 0.
+        cNe:    float = 0.
         #...
 
         # Initial current density profile
@@ -108,8 +107,35 @@ class DREAMSimulation(Simulation):
         T2:     float = .99
 
         # Post TQ magnetic perturbation profile
-        dBB1:   float = 0.#4e-4
-        dBB2:   float = 0.
+        dBB0:   float = 0.#4e-4
+        dBB1:   float = 0.
+
+        # Inverse wall time
+        tau0:   float = 0.
+
+
+        @property
+        def initialTemperature(self):
+            """ Initial temperature profile. """
+            r, T = Tokamak.getInitialTemperature(self.T1, self.T2, NR)
+            return r, T
+
+        @property
+        def initialCurrentDensity(self):
+            """ Initial curent density profile. """
+            r, j, I = Tokamak.getInitialCurrentDensity(self.j1, self.j2, self.Ip0, NR)
+            return r, j, I
+
+        def getInitialDensity(self, do: DREAMOutput, n: float, c: float):
+            """ Initial density MMI profiles. """
+            r, n = utils.getDensityProfile(do, n, c)
+            return r, n
+
+        def getMagneticPerturbation(self, do: DREAMOutput, dBB0: float, dBB1: float):
+            """ Magnetic perturbation profiles. """
+            r, dBB = utils.getMagneticPerturbation(do, dBB0, dBB1)
+            return r, dBB
+
 
     @dataclass(init=False)
     class Output(Simulation.Output):
@@ -138,6 +164,9 @@ class DREAMSimulation(Simulation):
             self.I_tot      = utils.join('eqsys.j_tot.current()', dos)
             self.T_cold     = utils.join('eqsys.T_cold.data', dos)
 
+            assert len(self.r) == NR
+            assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
+
             if close:
                 for do in dos:
                     do.close()
@@ -147,29 +176,12 @@ class DREAMSimulation(Simulation):
                 for fp in paths:
                     os.remove(fp)
 
-            assert len(self.r) == NR
-            assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
-
-        def _getTime(self, arr, x):
-            """
-            Returns the first time an element in arr is a fraction x of its
-            maximum value.
-            """
-            assert len(self.t) == len(arr)
-            assert 0 < x < 1
-            val0 = arr.max()
-            for t, val in zip(self.t, arr):
-                if val <= x * val0:
-                    return t
 
         @property
         def currentQuenchTime(self):
-            """
-            Tries to calculate the current quench time and returns it. If unable
-            it will return infinity.
-            """
-            t80 = self._getTime(self.I_ohm, .8)
-            t20 = self._getTime(self.I_ohm, .2)
+            """ Calculate CQ time, unable  it will return infinity. """
+            t80 = self.getTime(self.I_ohm, .8)
+            t20 = self.getTime(self.I_ohm, .2)
             if t80 is not None and t20 is not None:
                 return (t20 - t80) / .6
             else:
@@ -177,57 +189,60 @@ class DREAMSimulation(Simulation):
 
         @property
         def maxRECurrent(self):
-            """
-            Returns the maximum runaway electron current.
-            """
+            """ Maximum runaway electron current. """
             return self.I_re.max()
 
+        def getTime(self, arr: list, x):
+            """  Get first time t when arr(t) / max(arr) = x is satisfied """
+            assert len(arr) == len(self.t)
+            assert 0 < x < 1
+            maxVal = max(arr)
+            for t, val in zip(self.t, arr):
+                if val <= x * maxVal:
+                    return t
+
+
         def visualizeCurrents(self, log=False, ax=None, show=False):
-            """
-            Plot the Ohmic, RE and total currents.
-            """
+            """ Plot Ohmic, RE and total current. """
             return utils.visualizeCurrents(self.t, self.I_ohm, self.I_re, self.I_tot, log=log, ax=ax, show=show)
 
         def visualizeTemperature(self, times=[0,-1], ax=None, show=False):
-            """
-            Plot the temperature profile at selected timesteps.
-            """
+            """ Plot temperature profile at selected timesteps. """
             return utils.visualizeTemperature(self.r, self.T_cold, times=times, ax=ax, show=show)
 
-        def visualizeTemperatureEvolution(self, radii=[0], ax=None, show=False):
-            """
-            Plot the temperature evolution at selected radii.
-            """
-            return utils.visualizeTemperatureEvolution(self.t, self.T_cold, radii=radii, ax=ax, show=show)
+        def visualizeTemperatureEvolution(self, r=[0], ax=None, show=False):
+            """ Plot temperature evolution at selected radial nodes. """
+            return utils.visualizeTemperatureEvolution(self.t, self.T_cold, r=r, ax=ax, show=show)
 
     ############## DISRUPTION SIMULATION SETUP ##############
 
     def __init__(self, transport_cold=True, transport_re=True, svensson=False, id='out', verbose=True, **inputs):
-        """
-        Constructor. Core simulation settings. No input parameters are used here.
-        """
+        """ Constructor. Core simulation settings. """
         super().__init__(id=id, verbose=verbose, **inputs)
+
+        assert not (svensson and not transport_re), 'Svensson transport requires RE transport to be active'
 
         # Transport options
         self.transport_cold = transport_cold
         self.transport_re   = transport_re
         self.svensson       = svensson
-        assert not (svensson and not transport_re), 'Svensson transport requires RE transport to be active'
 
+        self.handleCrash = True
 
         self.ds = None      # This will be updated for each subsequent simulation.
         self.do = None      # We need access to do.grid.integrate()
 
-        self.handleCrash = True
-
         ##### Generate the initialization simulation #####
+
         self.ds = DREAMSettings()
+
         self.ds.other.include(['fluid'])
 
         # Set solver settings
         self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
         self.ds.solver.setType(Solver.NONLINEAR)
         self.ds.solver.setMaxIterations(maxiter=500)
+
         self.ds.solver.tolerance.set(reltol=2e-6)
         self.ds.solver.tolerance.set(unknown='n_re', reltol=2e-6, abstol=1e5)
         self.ds.solver.tolerance.set(unknown='j_re', reltol=2e-6, abstol=1e-5) # j ~ e*c*n_e ~ n_e*1e-10 ?
@@ -267,29 +282,11 @@ class DREAMSimulation(Simulation):
 
     ###### SIMULATION HELPER FUNCTIONS #######
 
-    def _getDREAMOutput(self, name, nt, tmax):
-        """
-        Runs DREAM simulation with given time resolution options and returns the
-        resulting DREAM output object.
-        """
-        self.ds.timestep.setNt(nt)
-        self.ds.timestep.setTmax(tmax)
-        out = self._getFileName(name, OUTPUT_DIR)
-        self.ds.output.setFilename(out)
-        do = self._run(out=out)
-        self.ds = DREAMSettings(self.ds)
-        self.ds.fromOutput(out)
-        return do
 
 
-    def _getInitialTemperature(self):
-        """
-        This is needed in the transport subclass.
-        """
-        r, T = Tokamak.getInitialTemperature(self.input.T1, self.input.T2)
-        return r, T
 
-    def _setInitialProfiles(self):
+
+    def setInitialProfiles(self):
         """
         Set initial profiles from input parameters.
         """
@@ -304,50 +301,45 @@ class DREAMSimulation(Simulation):
         if self.input.nHe:
             raise NotImplementedError('Helium is not yet implemented...')
 
-        # Set prescribed electric field
-        self.ds.eqsys.E_field.setPrescribedData(1e-4)
-
         # Set initial temperature profile
-        self.ds.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
-        rT, T = self._getInitialTemperature()
+        rT, T = self.input.initialTemperature
         self.ds.eqsys.T_cold.setPrescribedData(T, radius=rT)
+        self.ds.eqsys.T_cold.setType(Temperature.TYPE_PRESCRIBED)
 
         # Background free electron density from ions
         nfree, rn0 = self.ds.eqsys.n_i.getFreeElectronDensity()
         self.ds.eqsys.f_hot.setInitialProfiles(rn0=rn0, n0=nfree, rT0=rT, T0=T)
 
+        # Set dummy electric field
+        self.ds.eqsys.E_field.setPrescribedData(1e-4)
+
         # We need to access methods from within a DREAM output object
         self.ds.timestep.setTmax(1e-11)
         self.ds.timestep.setNt(1)
-        self.do = self._run(verbose=False)
+        self.do = self._run()
 
         # From now on, we store but a small subset of all timesteps to reduce memory use
         self.ds.timestep.setNumberOfSaveSteps(200)
 
-        # Set self-consistent electric field (initial condition is determined by the current density)
+        # Set self-consistent evolution of the electric field
         self.ds.eqsys.E_field.setType(EField.TYPE_SELFCONSISTENT)
-        self.ds.eqsys.E_field.setBoundaryCondition(EField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=INVERSE_WALL_TIME, R0=Tokamak.R0)
+        self.ds.eqsys.E_field.setBoundaryCondition(EField.BC_TYPE_SELFCONSISTENT, inverse_wall_time=self.input.tau0, R0=Tokamak.R0)
         self.ds.solver.tolerance.set('psi_wall', abstol=1e-6)
 
         # Set initial current density
-        rj, j = Tokamak.getInitialCurrentDensity(self.input.j1, self.input.j2, NR)
-        self.ds.eqsys.j_ohm.setInitialProfile(j, radius=rj, Ip0=self.input.Ip0)
+        rj, j, Ip = self.input.initialCurrentDensity
+        self.ds.eqsys.j_ohm.setInitialProfile(j, radius=rj, Ip0=Ip)
 
 
-    def _setTransport(self, dBB1, dBB2, nt, tmax):
+    def setTransport(self, dBB0, dBB1, nt, tmax):
         """
-        Configures the transport settings.
-
-        :param dBB1:
-        :param dBB2:
-        :param nt:
-        :param tmax:
-        :param svensson:
+        Configures DREAM transport settings for given magnetic perturbation
+        profile, number of timesteps and maximum simulation time.
         """
         # Set transport only if the magnetic pertubation is non-zero
-        if dBB1 != 0:
+        if dBB0 != 0:
 
-            r, dBB = utils.getQuadraticMagneticPerturbation(self.ds, dBB1, dBB2)
+            r, dBB = self.input.getMagneticPerturbation(self.do, dBB0, dBB1)
             R0dBB = np.sqrt(Tokamak.R0) * dBB
 
             t = np.linspace(0, tmax, nt)
@@ -370,43 +362,53 @@ class DREAMSimulation(Simulation):
 
                 else:
                     Drr = utils.getDiffusionOperator(dBB, R0=Tokamak.R0, svensson=False)
+                    Drr = np.tile(Drr, (nt, 1))
                     self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
                     self.ds.eqsys.n_re.transport.prescribeDiffusion(Drr, t=t, r=r)
 
 
-
-    def _runMMI(self, name, nt, tmax):
-        """
-        Injects neutral gas and run a short ionization simulation to allow them
-        to settle.
-        """
-        # Add injected materials
+    def setMMI(self):
+        """ Injects neutral gas from input parameters. """
         if self.input.nD2:
-            r, n = utils.getDensityProfile(self.do, self.input.nD2, self.input.aD2)
+            r, n = self.input.getInitialDensity(self.do, self.input.nD2, self.input.cD2)
             self.ds.eqsys.n_i.addIon('D2', Z=1, iontype=Ions.IONS_DYNAMIC, Z0=0, n=n, r=r,
             opacity_mode=Ions.ION_OPACITY_MODE_TRANSPARENT)
 
         if self.input.nNe:
-            r, n = utils.getDensityProfile(self.do, self.input.nNe, self.input.aNe)
+            r, n = self.input.getInitialDensity(self.do, self.input.nNe, self.input.cNe)
             self.ds.eqsys.n_i.addIon('Ne', Z=10, iontype=Ions.IONS_DYNAMIC, Z0=0, n=n, r=r)
 
-        # self.ds.solver.tolerance.set(reltol=1e-2)
 
-        do = self._getDREAMOutput(name, nt, tmax)
+    def getFilePath(self, text, dir):
+        """ Returns path of file and makes sure its directory exist. """
+        filename = f'{dir}{self.id}_{text}.h5'
+        path = pathlib.Path(filename)
+        dir = path.parent.resolve()
+        if not dir.exists():
+            dir.mkdir(parents=True)
+        fp = str(path.absolute())
+        return fp
 
+
+    def runDREAM(self, name, nt, tmax):
+        """
+        Runs DREAM simulation with given time resolution options and returns the
+        resulting DREAM output object.
+        """
+        self.ds.timestep.setNt(nt)
+        self.ds.timestep.setTmax(tmax)
+        out = self.getFilePath(name, OUTPUT_DIR)
+        self.ds.output.setFilename(out)
+        do = self._run(out=out)
+        self.ds = DREAMSettings(self.ds)
+        self.ds.fromOutput(out)
         return do
 
 
-    def _run(self, out=None, verbose=None, ntmax=None, getTmax=False):
-        """
-        Run single simulation from DREAMSettings object and handles crashes.
-        """
-
+    def _run(self, out=None):
+        """  Run simulation and handle any crashes. """
         do = None
-        if verbose is None:
-            quiet = (not self.verbose)
-        else:
-            quiet = (not verbose)
+        quiet = False
 
         try:
             do = runiface(self.ds, out, quiet=quiet)
@@ -414,32 +416,17 @@ class DREAMSimulation(Simulation):
             return do
 
         except DREAMException as err:
+            traceback.print_exc()
             if self.handleCrash:
                 tmax = self.ds.timestep.tmax
                 nt = self.ds.timestep.nt
-                if ntmax is None:
-                    ntmax = 2**MAX_RERUNS * max(NT_IONIZ, NT_TQ, NT_CQ)
+                ntmax = 2**MAX_RERUNS * max(NT_IONIZ, NT_TQ, NT_CQ)
                 if nt >= ntmax:
                     raise MaximumIterationsException('ERROR: MAXIMUM NUMBER OF RERUNS REACHED!') from err
                 else:
                     print(err)
                     print(f'WARNING : Number of iterations is increased from {nt} to {2*nt}!')
                     self.ds.timestep.setNt(2*nt)
-                    return self._run(out=out, verbose=verbose, ntmax=ntmax)
+                    return self._run(out=out)
             else:
                 raise DREAMCrashedException('ERROR: DREAM CRASHED!') from err
-
-
-    def _getFileName(self, io, dir):
-        """
-        Returns appropriate name of file and makes sure its directory exists.
-        """
-        filename = f'{dir}{self.id}_{io}.h5'
-
-        # Create directory if needed
-        fp = pathlib.Path(filename)
-        dir = fp.parent.resolve()
-        if not dir.exists():
-            dir.mkdir(parents=True)
-
-        return str(fp.absolute())

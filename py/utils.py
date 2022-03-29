@@ -117,22 +117,22 @@ def visualizeTemperature(r, T, times=[0,-1], ax=None, show=False):
 
     return ax
 
-def visualizeTemperatureEvolution(t, T, radii=[0], ax=None, show=False):
+def visualizeTemperatureEvolution(t, T, r=[0], ax=None, show=False):
     """
     Plots the temperature evolution at given radial nodes (radii=[0] plots the
     temperature at the core over time).
 
     :param t:       Simulation time.
     :param T:       Temperature distribution (NT x NR).
-    :param radii:   Radial nodes to plot temperature evolution.
+    :param r:   Radial nodes to plot temperature evolution.
     :param ax:      matplotlib Axes object.
     :param show:    Show the figure of the temperature evolutions.
     """
     if ax is None:
         ax = plt.axes()
 
-    for ri in radii:
-        ax.loglog(t * 1e3, T[:,ri] * 1e-3, label=ri)
+    for ri in r:
+        ax.plot(t * 1e3, T[:,ri] * 1e-3, label=ri)
 
     ax.legend(title='Radial node indices:')
     ax.set_xlabel('time (ms)')
@@ -173,18 +173,19 @@ def visualizeCurrents(t, I_ohm, I_re, I_tot, log=False, ax=None, show=False):
 
     return ax
 
-def getQuadraticMagneticPerturbation(ds, dBB1, dBB2):
+def getMagneticPerturbation(do, dBB0, dBB1):
     """
     Returns a quadratic profile for the magnetic pertubation, given the
     paramaters dBB1 and dBB2.
     """
     try:
-        r = np.linspace(0, ds.radialgrid.a, ds.radialgrid.nr)
+        r = do.grid.r
         assert r.size > 1
     except AttributeError as err:
-        raise Exception('Settings object does not include needed data.') from err
+        raise AttributeError('Settings object does not include needed data.') from err
 
-    dBB = dBB1 * (1 + dBB2 * r**2)
+    profile = (1 + dBB1 * r**2)
+    dBB = dBB0 * profile * do.grid.integrate(1) / do.grid.integrate(profile)
     return r, dBB
 
 
@@ -217,15 +218,3 @@ def getDiffusionOperator(dBB, q=1, R0=1., svensson=True):
 	else:
 		D = np.pi * R0 * q * c * dBB**2
 		return D
-
-def terminate(sim, Tstop):
-    """
-    Returns true if the temperature reaches Tstop. Used as termination function
-    during the thermal quench to determine when to lower/turn off the magnetic
-    pertubation dBB (in the end of the TQ?).
-
-    :param sim:     libdreampyface 'Simulation' object.
-    :param Tstop:   temperature [eV] at which to terminate the simulation.
-    """
-    temperature = sim.unknowns.getData('T_cold')
-    return temperature['x'][-1,0] < Tstop
