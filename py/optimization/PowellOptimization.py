@@ -9,8 +9,9 @@ from optimization import Optimization
 from linemin import Brent, goldenSectionSearch
 
 # Arbitrary large and small numbers used in certain steps to represent infinity and avoid dividing by zero.
-BIG = 1e10
-SMALL = 1e-10
+###### MAY BE PROBLEMATIC ######
+BIG = 1e30
+SMALL = 1e-30
 
 LINEMIN_BRENT = 1
 LINEMIN_GSS = 2
@@ -34,7 +35,7 @@ class PowellOptimization(Optimization):
 
         # Termination conditions
         ftol:       float       = 1e-1
-        maxIter:    int         = 10
+        maxIter:    int         = 20
 
         # Linemin method and Powell type
         linemin:    int         = LINEMIN_BRENT
@@ -62,6 +63,8 @@ class PowellOptimization(Optimization):
             try:
                 s.run(handleCrash=True) # handleCrash is currently specific to DREAMSimulation
             except Exception as err:
+                self.log['P'] = np.vstack((self.log['P'], P))
+                self.log['fun'] = np.append(self.log['fun'], None)
                 self.writeLog()
                 print(f'Simulation error obtained for parameters:\n {self.parameters}\n')
                 raise err
@@ -164,21 +167,31 @@ class PowellOptimization(Optimization):
 
         # Main loop that updates the basis to avoid linear dependence.
         i = 0
-        while 2.*np.abs(fp-fmin) > self.settings.ftol*(np.abs(fp)+np.abs(fmin)):
-            i += 1
-            fp = fmin
+        while True:#2.*np.abs(fp-fmin) > self.settings.ftol*(np.abs(fp)+np.abs(fmin)):
 
-            if i > self.settings.maxIter:
-                if self.verbose:
-                    print(f'Maximum number of iterations exceeded (maxIter = {self.settings.maxIter}). Terminating Powell.')
-                self.writeLog()
-                return P, fmin
-
-            if self.settings.powellType == POWELL_TYPE_RESET or i == 1:
+            if self.settings.powellType == POWELL_TYPE_RESET or i == 0:
                 basis = np.eye(nD) # Resets basis (other methods not yet implemented).
 
             # Iterates through nD cycles of the basis vectors until all have been updated.
-            for _ in range(nD):
+            for _ in range(nD):           
+                i += 1
+   
+                if 2.*np.abs(fp-fmin) <= self.settings.ftol*(np.abs(fp)+np.abs(fmin)):
+                    if self.verbose:
+                        print(f'Powell finished after {i} iterations.')
+                    self.writeLog()
+                    return P, fmin
+                
+                
+                fp = fmin
+
+                if i > self.settings.maxIter:
+                    if self.verbose:
+                        print(f'Maximum number of iterations exceeded (maxIter = {self.settings.maxIter}). Terminating Powell.')
+                    self.writeLog()
+                    return P, fmin
+            
+            
                 f0 = fmin
                 # Finds the minimum of the function along each direction in the basis.
                 for u in basis:
@@ -192,25 +205,24 @@ class PowellOptimization(Optimization):
 
                     self.log['P'] = np.vstack((self.log['P'], P))
                     self.log['fun'] = np.append(self.log['fun'], fmin)
-
-                
+                    self.writeLog()
 
                 # Creates a new basis vector from the total distance moved in the previous cycle.
                 uN = P - P0
-                
+
                 if self.settings.powellType == POWELL_TYPE_DLD:
                     fE = self._restrainedFun(P0 + 2*uN)
-                    
+
                     diff = self.log['fun'][-nD-1:-1] - self.log['fun'][-nD:]
                     iDf = np.argmax(diff)
                     Df = diff[iDf]
-                    
+
                     if fE < f0 and 2.*(f0-2*fmin+fE) * ((f0-fmin) - Df)**2 < (f0-fE)**2 * Df:
                         if self.verbose:
                             print('Discarding direction of largest decrease.')
-                            
+
                         basis[iDf] = uN
-                        
+
                         # Minimizes along new direction and sets new P0.
                         lineFun = lambda x: self._restrainedFun(P + x*uN)
 
@@ -219,10 +231,11 @@ class PowellOptimization(Optimization):
 
                         xmin, fmin = linemin(lineFun, bracket, tol=1e-1, maxIter=20, verbose=self.verbose)
                         P += xmin*uN
-                        
+
                         self.log['P'] = np.vstack((self.log['P'], P))
                         self.log['fun'] = np.append(self.log['fun'], fmin)
-                
+                        self.writeLog()
+
                 else:
                     basis[:-1] = basis[1:]
                     basis[-1] = uN
@@ -235,11 +248,11 @@ class PowellOptimization(Optimization):
 
                     xmin, fmin = linemin(lineFun, bracket, tol=1e-1, maxIter=20, verbose=self.verbose)
                     P += xmin*uN
-                    
+
                     self.log['P'] = np.vstack((self.log['P'], P))
                     self.log['fun'] = np.append(self.log['fun'], fmin)
-                
-                
+                    self.writeLog()
+
                 P0 = np.copy(P)
 
 
