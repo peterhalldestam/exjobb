@@ -35,7 +35,7 @@ REMOVE_FILES = False     # Removes output files post simulation
 MAX_RERUNS = 4          # Maximum number of reruns before raising SimulationException
 
 # Number of radial nodes
-NR = 2
+NR = 10
 
 
 # Maximum simulation time
@@ -272,18 +272,15 @@ class DREAMSimulation(Simulation):
         Tokamak.setMagneticField(self.ds, nr=NR)
 
 
-    def run(self):
-        """
-        Run the simulation and creates single simulation Output object from
-        several DREAM output objects.
-        """
-        raise NotImplementedError
+    def run(self, handleCrash=None):
+        """ Run the simulation. """
+        assert self.output is None, 'Output object already exists!'
+        if handleCrash is not None:
+            self.handleCrash = handleCrash
+
 
 
     ###### SIMULATION HELPER FUNCTIONS #######
-
-
-
 
 
     def setInitialProfiles(self):
@@ -316,7 +313,7 @@ class DREAMSimulation(Simulation):
         # We need to access methods from within a DREAM output object
         self.ds.timestep.setTmax(1e-11)
         self.ds.timestep.setNt(1)
-        self.do = self._run()
+        self.do = self._run(quiet=True)
 
         # From now on, we store but a small subset of all timesteps to reduce memory use
         self.ds.timestep.setNumberOfSaveSteps(200)
@@ -405,10 +402,11 @@ class DREAMSimulation(Simulation):
         return do
 
 
-    def _run(self, out=None):
+    def _run(self, out=None, quiet=None):
         """  Run simulation and handle any crashes. """
         do = None
-        quiet = False
+        if quiet is None:
+            quiet = not self.verbose
 
         try:
             do = runiface(self.ds, out, quiet=quiet)

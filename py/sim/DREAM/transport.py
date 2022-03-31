@@ -2,6 +2,7 @@ import sys, os
 import numpy as np
 from dataclasses import dataclass
 
+import utils
 from sim.DREAM.DREAMSimulation import DREAMSimulation
 
 from DREAM import DREAMSettings
@@ -73,7 +74,7 @@ class TransportSimulation(DREAMSimulation):
 
     def run(self, handleCrash=None):
         """ Run simulation. """
-        assert self.output is None, 'Output object already exists!'
+        super().run(handleCrash=handleCrash)
 
         self.setInitialProfiles()
 
