@@ -1,6 +1,5 @@
 import sys, os
 import pathlib
-import traceback
 import numpy as np
 import matplotlib.pyplot as plt
 from dataclasses import dataclass, field
@@ -8,7 +7,7 @@ from dataclasses import dataclass, field
 # sys.path.append(os.path.abspath('..'))
 import utils
 import tokamaks.ITER as Tokamak # This sets the used tokamak geometry
-from sim.simulation import Simulation
+import sim.simulation as sim
 from sim.simulationException import SimulationException
 
 try:
@@ -31,36 +30,19 @@ import DREAM.Settings.Solver as Solver
 import DREAM.Settings.TransportSettings as Transport
 
 CHECK_OUTPUT = True     # Check if n_re / n_cold > 1e-2 post simulation
-REMOVE_FILES = False     # Removes output files post simulation
+REMOVE_FILES = True     # Removes output files post simulation
 MAX_RERUNS = 4          # Maximum number of reruns before raising SimulationException
 
 # Number of radial nodes
 NR = 10
 
+# Maximum no. iterations
+NT_MAX = 20_000
 
-# Maximum simulation time
-TMAX_TOT    =   1e-2
+# Where to store DREAMOutput files during simulation
+OUTPUT_DIR = 'outputs/'
 
 
-# (TQ) Exponential decay settings
-TMAX_IONIZ  = 1e-6
-TMAX_TQ     = Tokamak.t0 * 8
-NT_IONIZ    = 100
-NT_TQ       = 200
-NT_CQ       = 600
-
-# (TQ) Transport settings
-TQ_DECAY_TIME = Tokamak.t0
-TQ_STOP_FRACTION = 1 / 2000  # 20 kev -> 10 eV
-TQ_FINAL_TEMPERATURE = Tokamak.T_final
-TQ_INITIAL_dBB0 = 3.5e-3
-
-SETTINGS_DIR    = 'settings/'
-OUTPUT_DIR      = 'outputs/'
-
-# Input parameter limits
-MAX_FUEL_DENSITY = 1e20
-MAX_INJECTED_DENSITY = 1e20
 
 # Custom exceptions
 
@@ -70,8 +52,7 @@ class MaximumIterationsException(SimulationException):
 class DREAMCrashedException(SimulationException):
     pass
 
-
-class DREAMSimulation(Simulation):
+class DREAMSimulation(sim.Simulation):
     """
     Description...
     """
@@ -79,7 +60,7 @@ class DREAMSimulation(Simulation):
     ############## DATA CLASSES ##############
 
     @dataclass
-    class Input(Simulation.Input):
+    class Input(sim.Simulation.Input):
         """
         Input parameters for the DREAM simulation. Defined below is the default
         baseline values of each parameter.
@@ -138,7 +119,7 @@ class DREAMSimulation(Simulation):
 
 
     @dataclass(init=False)
-    class Output(Simulation.Output):
+    class Output(sim.Simulation.Output):
         """
         Output variables from the DREAM simulation. The constructor expects one
         or more DREAMOutput objects as arguments.
@@ -167,14 +148,16 @@ class DREAMSimulation(Simulation):
             assert len(self.r) == NR
             assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
 
-            if close:
-                for do in dos:
+            for do in dos:
+                if REMOVE_FILES:
+                    print(do.filename, os.path.abspath(do.filename))
+                    os.remove(do.filename)
+                if close:
                     do.close()
 
-            if REMOVE_FILES:
-                paths = [OUTPUT_DIR + path for path in os.listdir(OUTPUT_DIR)]
-                for fp in paths:
-                    os.remove(fp)
+                # paths = [OUTPUT_DIR + path for path in os.listdir(OUTPUT_DIR)]
+                # for fp in paths:
+                #     os.remove(fp)
 
 
         @property
@@ -185,7 +168,7 @@ class DREAMSimulation(Simulation):
             if t80 is not None and t20 is not None:
                 return (t20 - t80) / .6
             else:
-                return np.inf
+                return 1e10
 
         @property
         def maxRECurrent(self):
@@ -214,6 +197,7 @@ class DREAMSimulation(Simulation):
             """ Plot temperature evolution at selected radial nodes. """
             return utils.visualizeTemperatureEvolution(self.t, self.T_cold, r=r, ax=ax, show=show)
 
+
     ############## DISRUPTION SIMULATION SETUP ##############
 
     def __init__(self, transport_cold=True, transport_re=True, svensson=False, id='out', verbose=True, **inputs):
@@ -227,6 +211,7 @@ class DREAMSimulation(Simulation):
         self.transport_re   = transport_re
         self.svensson       = svensson
 
+        self.outputDir = OUTPUT_DIR # relative dir path
         self.handleCrash = True
 
         self.ds = None      # This will be updated for each subsequent simulation.
@@ -281,7 +266,6 @@ class DREAMSimulation(Simulation):
 
 
     ###### SIMULATION HELPER FUNCTIONS #######
-
 
     def setInitialProfiles(self):
         """
@@ -394,7 +378,7 @@ class DREAMSimulation(Simulation):
         """
         self.ds.timestep.setNt(nt)
         self.ds.timestep.setTmax(tmax)
-        out = self.getFilePath(name, OUTPUT_DIR)
+        out = self.getFilePath(name, self.outputDir)
         self.ds.output.setFilename(out)
         do = self._run(out=out)
         self.ds = DREAMSettings(self.ds)
@@ -414,13 +398,11 @@ class DREAMSimulation(Simulation):
             return do
 
         except DREAMException as err:
-            traceback.print_exc()
             if self.handleCrash:
                 tmax = self.ds.timestep.tmax
                 nt = self.ds.timestep.nt
-                ntmax = 2**MAX_RERUNS * max(NT_IONIZ, NT_TQ, NT_CQ)
-                if nt >= ntmax:
-                    raise MaximumIterationsException('ERROR: MAXIMUM NUMBER OF RERUNS REACHED!') from err
+                if nt >= NT_MAX:
+                    raise MaximumIterationsException('ERROR: MAXIMUM NUMBER OF TIMESTEPS REACHED!') from err
                 else:
                     print(err)
                     print(f'WARNING : Number of iterations is increased from {nt} to {2*nt}!')

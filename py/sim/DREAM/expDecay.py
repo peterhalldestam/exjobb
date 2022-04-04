@@ -2,35 +2,29 @@ import sys, os
 import numpy as np
 from dataclasses import dataclass
 
-from sim.DREAM.DREAMSimulation import DREAMSimulation
+import sim.DREAM.DREAMSimulation as sim
 
 import DREAM.Settings.Equations.ColdElectronTemperature as Temperature
-
-
-OUTPUT_ID = 'out_transport'
-OUTPUT_DIR = 'outputs/'
-
 
 TQ_DECAY_TIME           = 1e-3
 TQ_FINAL_TEMPERATURE    = 10  # 20 kev -> 10 eV
 
 TMAX_TOT    = 10e-2
-TMAX_IONIZ  = 1e-6
+TMAX_IONIZ  = 2e-6
 TMAX_TQ     = 5e-3
 
-NT_IONIZ    = 1000
-NT_TQ       = 2000
-NT_CQ       = 2000
+NT_IONIZ    = 4000
+NT_TQ       = 6000
+NT_CQ       = 8000
 
-    
-class ExponentialDecaySimulation(DREAMSimulation):
+
+class ExponentialDecaySimulation(sim.DREAMSimulation):
     """
     Disruption simulation with initially a prescribed exponential decaying
     temperature to model the thermal quench.
     """
-
     @dataclass
-    class Input(DREAMSimulation.Input):
+    class Input(sim.DREAMSimulation.Input):
         """ Include DREAMSimulation input and TQ settings. """
         TQ_decay_time:          float = TQ_DECAY_TIME
         TQ_final_temperature:   float = TQ_FINAL_TEMPERATURE
@@ -45,6 +39,7 @@ class ExponentialDecaySimulation(DREAMSimulation):
             T = T1 + (T0 - T1) * np.exp(-t / self.TQ_decay_time)
             return t.reshape((nt,)), r, T
 
+
     #### DISRUPTION SIMULATION SETUP ######
 
     def  __init__(self, id='out_expDecay', verbose=True, **inputs):
@@ -54,7 +49,7 @@ class ExponentialDecaySimulation(DREAMSimulation):
 
     def run(self, handleCrash=None):
         """ Run simulation. """
-        assert self.output is None, 'Output object already exists!'
+        super().run(handleCrash=handleCrash)
 
         self.setInitialProfiles()
 
