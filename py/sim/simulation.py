@@ -1,9 +1,12 @@
 import numpy as np
-from dataclasses import dataclass
+import dataclasses
+
+
+
 
 class Simulation:
 
-    @dataclass
+    @dataclasses.dataclass
     class Input:
         """
         Input parameters for simulation object.
@@ -14,14 +17,13 @@ class Simulation:
         def fromVector():
             pass
 
-    @dataclass
+    @dataclasses.dataclass
     class Output:
         """
         Output variables obtained when the simulation is finished.
         """
         pass
-
-
+        
     def __init__(self, id=None, verbose=True, **inputs):
         """
         Constructor.
@@ -45,13 +47,8 @@ class Simulation:
             print(f'Provided inputs must exist in {self.Input().__dataclass_fields__.keys()}')
             raise err
 
-
     def run(self, doubleIterations=None):
         """
         Run simulation and update output.
         """
-        self.output = None
         pass
-
-    def isFinished(self) -> bool:
-        return self.output is not None
