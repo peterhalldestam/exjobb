@@ -159,6 +159,10 @@ class DREAMSimulation(sim.Simulation):
                 # for fp in paths:
                 #     os.remove(fp)
 
+        @property
+        def finalOhmicCurrent(self):
+            """ Ohmic current in the final time step. """
+            return self.I_ohm[-1]
 
         @property
         def currentQuenchTime(self):

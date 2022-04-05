@@ -23,46 +23,46 @@ NT_IONIZ    = 1000
 NT_TQ       = 2000
 NT_CQ       = 2000
 
-@dataclass
-class Input(sim.Input):
-    """ Include DREAMSimulation input and TQ settings. """
-    TQ_stop_fraction:   float = TQ_STOP_FRACTION
-    TQ_initial_dBB0:    float = TQ_INITIAL_dBB0
-
-@dataclass(init=False)
-class Output(sim.Output):
-    """
-    Additional output variables other than what is defined in the superclass.
-    These are
-    """
-    P_trans:    np.ndarray  # rate of energyloss through plasma edge [J s^-1 m^-1]
-    P_rad:      np.ndarray  # radiated power density [J s^-1 m^-1]
-
-    def __init__(self, *dos, close=True):
-        """ Constructor. """
-        self.P_trans    = utils.join('other.scalar.energyloss_T_cold.data', dos, other=True)
-        self.P_rad      = utils.join('other.fluid.Tcold_radiation.integral()', dos, other=True)
-        super().__init__(*dos, close=close)
-
-    @property
-    def averageTemperature(self):
-        """ Spatially averaged cold electron temperature. """
-        return np.mean(self.T_cold, axis=1)
-
-    @property
-    def transportedFraction(self):
-        """ Fraction of energy loss caused by transport through the plasma edge. """
-        dt = self.t[1:] - self.t[:-1]
-        Q_trans = np.sum(self.P_trans[:,0] * dt)
-        Q_rad = np.sum(self.P_rad * dt)
-        Q_tot = Q_trans + Q_rad
-        return Q_trans/Q_tot
-
 
 class TransportSimulation(sim.DREAMSimulation):
     """
     Disruption simulation with the thermal quench driven by radial transport.
     """
+
+    @dataclass
+    class Input(sim.DREAMSimulation.Input):
+        """ Include DREAMSimulation input and TQ settings. """
+        TQ_stop_fraction:   float = TQ_STOP_FRACTION
+        TQ_initial_dBB0:    float = TQ_INITIAL_dBB0
+
+    @dataclass(init=False)
+    class Output(sim.DREAMSimulation.Output):
+        """
+        Additional output variables other than what is defined in the superclass.
+        These are
+        """
+        P_trans:    np.ndarray  # rate of energyloss through plasma edge [J s^-1 m^-1]
+        P_rad:      np.ndarray  # radiated power density [J s^-1 m^-1]
+
+        def __init__(self, *dos, close=True):
+            """ Constructor. """
+            self.P_trans    = utils.join('other.scalar.energyloss_T_cold.data', dos, other=True)
+            self.P_rad      = utils.join('other.fluid.Tcold_radiation.integral()', dos, other=True)
+            super().__init__(*dos, close=close)
+
+        @property
+        def averageTemperature(self):
+            """ Spatially averaged cold electron temperature. """
+            return np.mean(self.T_cold, axis=1)
+
+        @property
+        def transportedFraction(self):
+            """ Fraction of energy loss caused by transport through the plasma edge. """
+            dt = self.t[1:] - self.t[:-1]
+            Q_trans = np.sum(self.P_trans[:,0] * dt)
+            Q_rad = np.sum(self.P_rad * dt)
+            Q_tot = Q_trans + Q_rad
+            return Q_trans/Q_tot
 
 
     #### DISRUPTION SIMULATION SETUP ######
