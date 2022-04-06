@@ -45,8 +45,16 @@ V = Ptrack[1:, 1] - Ptrack[:-1, 1]
 #V = Y[1:] - Y[:-1]
 
 #ax.quiver(X,Y,U,V)
-for i in range(len(X)):
-    ax.arrow(X[i], Y[i], U[i], V[i], width=0.05, length_includes_head=True)
+for i in range(len(X)-6):
+    if i == 0:
+        ax.plot(X[i], Y[i], 'bo', markersize = 8)
+    if i == len(X)-7:
+        ax.plot(X[i+1], Y[i+1], 'y*', markersize = 10)
+
+    if (i+1) % 3 == 0:
+        ax.arrow(X[i], Y[i], U[i], V[i], width=0.05, length_includes_head=True, facecolor='r')
+    else:
+        ax.arrow(X[i], Y[i], U[i], V[i], width=0.05, length_includes_head=True)
 
 #for i in range(len(numbers)):
 #    ax.text(Ptrack[i,0], Ptrack[i,1]+0.1, str(numbers[i]))
@@ -56,6 +64,10 @@ ax.add_patch( Rectangle((-1., -4.),
                         fc ='none', 
                         ec ='g',
                         lw = 2) )
+                
+ax.set_xlabel(r'$x$', fontsize=14)
+ax.set_ylabel(r'$y$', fontsize=14)
+ax.set_title(r'f(x,y)', fontsize=14)
 
 """                         
 ax.plot(crossMTrack[1:, 0], crossMTrack[1:, 1], 'bx')

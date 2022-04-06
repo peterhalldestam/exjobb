@@ -1,4 +1,7 @@
 import sys
+sys.path.append('../simulation')
+from DREAMSimulation import TransportException
+
 import json
 import numpy as np
 from numpyencoder import NumpyEncoder
@@ -62,6 +65,8 @@ class PowellOptimization(Optimization):
 
             try:
                 s.run(handleCrash=True) # handleCrash is currently specific to DREAMSimulation
+            except TransportException:
+                return BIG
             except Exception as err:
                 self.log['P'] = np.vstack((self.log['P'], P))
                 self.log['fun'] = np.append(self.log['fun'], None)
@@ -167,7 +172,7 @@ class PowellOptimization(Optimization):
 
         # Main loop that updates the basis to avoid linear dependence.
         i = 0
-        while True:#2.*np.abs(fp-fmin) > self.settings.ftol*(np.abs(fp)+np.abs(fmin)):
+        while True:
 
             if self.settings.powellType == POWELL_TYPE_RESET or i == 0:
                 basis = np.eye(nD) # Resets basis (other methods not yet implemented).
