@@ -149,10 +149,10 @@ class DREAMSimulation(sim.Simulation):
             assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
 
             for do in dos:
-                if REMOVE_FILES:
-                    print(do.filename, os.path.abspath(do.filename))
-                    os.remove(do.filename)
                 if close:
+                    if REMOVE_FILES:
+                        print(do.filename, os.path.abspath(do.filename))
+                        os.remove(do.filename)
                     do.close()
 
                 # paths = [OUTPUT_DIR + path for path in os.listdir(OUTPUT_DIR)]
