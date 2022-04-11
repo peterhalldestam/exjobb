@@ -148,11 +148,6 @@ class DREAMSimulation(sim.Simulation):
             assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
 
             for do in dos:
-<<<<<<< HEAD
-=======
-                if REMOVE_FILES:
-                    os.remove(do.filename)
->>>>>>> dd5b74269ea858a5bec21ee080070976b1611634
                 if close:
                     if REMOVE_FILES:
                         print(do.filename, os.path.abspath(do.filename))
