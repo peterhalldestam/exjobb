@@ -5,7 +5,7 @@ from sim.DREAM.transport import TransportSimulation
 
 # objective function parameters
 CRITICAL_RE_CURRENT             = 150e3
-CRITICAL_OHMIC_CURRENT          = 200e3
+CRITICAL_OHMIC_CURRENT          = 300e3
 CQ_TIME_MIN                     = 50e-3
 CQ_TIME_MAX                     = 150e-3
 SLOPE_LEFT                      = 3e2
@@ -34,10 +34,10 @@ def baseObjective(output, weight=100):
     #     raise TypeError("output need to be a subclass of DREAMSimulation.Output")
 
     obj1 = output.maxRECurrent / CRITICAL_RE_CURRENT
-    obj1 = output.finalOhmicCurrent / CRITICAL_OHMIC_CURRENT
+    obj2 = output.finalOhmicCurrent / CRITICAL_OHMIC_CURRENT
     obj3 = sigmoid(-output.currentQuenchTime, -CQ_TIME_MIN, SLOPE_LEFT)
     obj4 = sigmoid(output.currentQuenchTime, CQ_TIME_MAX, SLOPE_RIGHT)
-    return obj1 + weight * (obj2 + obj3)
+    return obj1 + obj2 + weight * (obj3 + obj4)
 
 def heatLossObjective(output, weight1=100, weight2=20):
     """
