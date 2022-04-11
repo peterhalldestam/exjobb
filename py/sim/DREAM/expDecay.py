@@ -29,6 +29,22 @@ class ExponentialDecaySimulation(sim.DREAMSimulation):
         TQ_decay_time:          float = TQ_DECAY_TIME
         TQ_final_temperature:   float = TQ_FINAL_TEMPERATURE
 
+        nt_ioniz:   int = NT_IONIZ
+        nt_TQ:      int = NT_TQ
+        nt_CQ:      int = NT_CQ
+
+        tmax_tot:   float = TMAX_TOT
+        tmax_ioniz: float = TMAX_IONIZ
+        tmax_TQ:    float = TMAX_TQ
+
+        @property
+        def resolution(self, stage):
+            match stage:
+                case []
+
+
+            return
+
         @property
         def temperatureTQ(self):
             """ Exponential decaying temperature during thermal quench. """
@@ -46,6 +62,14 @@ class ExponentialDecaySimulation(sim.DREAMSimulation):
         """ Constructor. """
         super().__init__(id=id, verbose=verbose, **inputs)
 
+        # Resolution parameters
+        self.nt_ioniz   = inputs.get('nt_ioniz', NT_IONIZ)
+        self.nt_TQ      = inputs.get('nt_TQ', NT_TQ)
+        self.nt_CQ      = inputs.get('nt_CQ', NT_CQ)
+        self.tmax_ioniz = inputs.get('tmax_ioniz', TMAX_IONIZ)
+        self.tmax_TQ    = inputs.get('tmax_TQ', TMAX_TQ)
+        self.tmax_tot   = inputs.get('tmax_tot', TMAX_TOT)
+
 
     def run(self, handleCrash=None):
         """ Run simulation. """
@@ -61,19 +85,19 @@ class ExponentialDecaySimulation(sim.DREAMSimulation):
         do1 = self.setMMI()
 
         # Let the ions settle
-        do1 = self.runDREAM('1', NT_IONIZ, TMAX_IONIZ)
+        do1 = self.runDREAM('1', self.nt_ioniz, self.tmax_ioniz)
 
         # run rest of TQ part of simulation
-        do2 = self.runDREAM('2', NT_TQ, TMAX_TQ - TMAX_IONIZ)
+        do2 = self.runDREAM('2', self.nt_TQ, self.tmax_tot - self.tmax_ioniz)
 
         # Change to self consistent temperature evolution
         self.ds.eqsys.T_cold.setType(Temperature.TYPE_SELFCONSISTENT)
 
         # Set transport settings
-        self.setTransport(self.input.dBB0, self.input.dBB1, NT_CQ, TMAX_TOT - TMAX_TQ - TMAX_IONIZ)
+        self.setTransport(self.input.dBB0, self.input.dBB1, self.nt_CQ, self.tmax_tot - self.tmax_TQ - self.tmax_ioniz)
 
         # Run CQ and runaway plateau part of simulation
-        do3 = self.runDREAM('3', NT_CQ, TMAX_TOT - TMAX_TQ - TMAX_IONIZ)
+        do3 = self.runDREAM('3', self.nt_CQ, self.tmax_tot - self.tmax_TQ - self.tmax_ioniz)
 
         # Set output from DREAM output
         self.output = self.Output(do1, do2, do3)
