@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import utils
 import sim.DREAM.DREAMSimulation as sim
+from sim.simulationException import SimulationException
 
 from DREAM import DREAMSettings
 import DREAM.Settings.Equations.ColdElectronTemperature as Temperature
@@ -12,17 +13,19 @@ OUTPUT_ID = 'out_transport'
 OUTPUT_DIR = 'outputs/'
 
 
-TQ_STOP_FRACTION    = 1 / 2000  # 20 kev -> 10 eV
+TQ_STOP_FRACTION    = 1 / 1000 #2000  # 20 kev -> 10 eV
 TQ_INITIAL_dBB0     = 4e-3
 
-TMAX_TOT    = 1e-2
+TMAX_TOT    = 1.6e-1
 TMAX_IONIZ  = 1e-6
 TMAX_TQ     = 8e-3
 
-NT_IONIZ    = 1000
-NT_TQ       = 2000
-NT_CQ       = 2000
+NT_IONIZ    = 2000
+NT_TQ       = 6000
+NT_CQ       = 10000
 
+class TransportException(SimulationException):
+    pass
 
 class TransportSimulation(sim.DREAMSimulation):
     """
@@ -47,7 +50,7 @@ class TransportSimulation(sim.DREAMSimulation):
         def __init__(self, *dos, close=True):
             """ Constructor. """
             self.P_trans    = utils.join('other.scalar.energyloss_T_cold.data', dos, other=True)
-            self.W_cold      = utils.join('other.eqsys.W_cold.integral()', dos, other=True)[0]
+            self.W_cold      = utils.join('eqsys.W_cold.integral()', dos, other=True)[0]
             super().__init__(*dos, close=close)
 
         @property
@@ -94,7 +97,7 @@ class TransportSimulation(sim.DREAMSimulation):
         do1 = self.runDREAM('1', NT_IONIZ, TMAX_IONIZ)
 
         # Test run TQ and obtain time when the temperature reaches a certain value
-        do2 = self.runDREAM('2', NT_TQ, TMAX_TQ - TMAX_IONIZ)
+        do2 = self.runDREAM('2', 2*NT_TQ, 2*(TMAX_TQ - TMAX_IONIZ))
         tmpOut = self.Output(do1, do2, close=False)
         tmax = tmpOut.getTime(tmpOut.averageTemperature, self.input.TQ_stop_fraction)
         do2.close()
