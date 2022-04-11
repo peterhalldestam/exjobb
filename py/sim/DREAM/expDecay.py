@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import sys, os
 import numpy as np
 from dataclasses import dataclass
@@ -9,13 +10,13 @@ import DREAM.Settings.Equations.ColdElectronTemperature as Temperature
 TQ_DECAY_TIME           = 1e-3
 TQ_FINAL_TEMPERATURE    = 10  # 20 kev -> 10 eV
 
-TMAX_TOT    = 10e-2
-TMAX_IONIZ  = 2e-6
-TMAX_TQ     = 5e-3
+TMAX_TOT    = 2e-1
+TMAX_IONIZ  = 1e-6
+TMAX_TQ     = 8e-3
 
-NT_IONIZ    = 1000
-NT_TQ       = 4000
-NT_CQ       = 4000
+NT_IONIZ    = 3000
+NT_TQ       = 8000
+NT_CQ       = 12000
 
 
 class ExponentialDecaySimulation(sim.DREAMSimulation):
@@ -60,7 +61,7 @@ class ExponentialDecaySimulation(sim.DREAMSimulation):
         self.nt_CQ      = self.input.nt_ioniz
         self.tmax_ioniz = self.input.tmax_ioniz
         self.tmax_TQ    = self.input.tmax_TQ - self.input.tmax_ioniz
-        self.tmax_CQ   = self.input.tmax_tot - self.input.tmax_TQ - self.input.tmax_ioniz
+        self.tmax_CQ    = self.input.tmax_tot - self.input.tmax_TQ - self.input.tmax_ioniz
 
 
     def run(self, handleCrash=None):
