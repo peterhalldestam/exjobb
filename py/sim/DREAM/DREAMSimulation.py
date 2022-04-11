@@ -149,6 +149,8 @@ class DREAMSimulation(sim.Simulation):
 
             for do in dos:
                 if close:
+                    if REMOVE_FILES:
+                        os.remove(do.filename)
                     do.close()
                 if REMOVE_FILES:
                     os.remove(do.filename)

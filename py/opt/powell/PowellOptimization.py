@@ -1,6 +1,5 @@
 import sys, os
 sys.path.append(os.path.abspath('..'))
-#from DREAMSimulation import TransportException
 
 import json
 import numpy as np
@@ -22,6 +21,7 @@ LINEMIN_GSS = 2
 POWELL_TYPE_RESET = 1
 POWELL_TYPE_DLD = 2
 
+
 class PowellOptimization(Optimization):
 
     @dataclass
@@ -29,6 +29,7 @@ class PowellOptimization(Optimization):
         """
         Settings parameters for the optimization algorithm.
         """
+
         # Objective function
         obFun:      FunctionType
 

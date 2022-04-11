@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import sys, os
 import numpy as np
 from dataclasses import dataclass
@@ -113,6 +114,9 @@ class TransportSimulation(sim.DREAMSimulation):
         self.ds = DREAMSettings(self.ds)
         self.ds.fromOutput(out_ioniz)
         do3 = self.runDREAM('3', NT_TQ, self.tStop - TMAX_IONIZ)
+
+        # Remove old output file 
+        os.remove(do2.filename)
 
         # Set the final magnetic pertubation
         self.setTransport(self.input.dBB0, self.input.dBB1,  NT_CQ, TMAX_TOT - self.tStop - TMAX_IONIZ)
