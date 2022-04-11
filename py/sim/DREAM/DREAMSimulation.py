@@ -31,10 +31,9 @@ import DREAM.Settings.TransportSettings as Transport
 
 CHECK_OUTPUT = True     # Check if n_re / n_cold > 1e-2 post simulation
 REMOVE_FILES = True     # Removes output files post simulation
-MAX_RERUNS = 4          # Maximum number of reruns before raising SimulationException
 
 # Number of radial nodes
-NR = 10
+NR = 20
 
 # Maximum no. iterations
 NT_MAX = 20_000
@@ -149,6 +148,11 @@ class DREAMSimulation(sim.Simulation):
             assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
 
             for do in dos:
+<<<<<<< HEAD
+=======
+                if REMOVE_FILES:
+                    os.remove(do.filename)
+>>>>>>> dd5b74269ea858a5bec21ee080070976b1611634
                 if close:
                     if REMOVE_FILES:
                         print(do.filename, os.path.abspath(do.filename))

@@ -13,9 +13,9 @@ TMAX_TOT    = 10e-2
 TMAX_IONIZ  = 2e-6
 TMAX_TQ     = 5e-3
 
-NT_IONIZ    = 4000
-NT_TQ       = 6000
-NT_CQ       = 8000
+NT_IONIZ    = 1000
+NT_TQ       = 4000
+NT_CQ       = 4000
 
 
 class ExponentialDecaySimulation(sim.DREAMSimulation):

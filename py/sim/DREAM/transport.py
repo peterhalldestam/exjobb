@@ -43,12 +43,12 @@ class TransportSimulation(sim.DREAMSimulation):
         These are
         """
         P_trans:    np.ndarray  # rate of energyloss through plasma edge [J s^-1 m^-1]
-        P_rad:      np.ndarray  # radiated power density [J s^-1 m^-1]
+        W_cold:     float       # initial thermal energy [J m^-1]
 
         def __init__(self, *dos, close=True):
             """ Constructor. """
             self.P_trans    = utils.join('other.scalar.energyloss_T_cold.data', dos, other=True)
-            self.P_rad      = utils.join('other.fluid.Tcold_radiation.integral()', dos, other=True)
+            self.W_cold      = utils.join('other.eqsys.W_cold.integral()', dos, other=True)[0]
             super().__init__(*dos, close=close)
 
         @property
@@ -61,9 +61,7 @@ class TransportSimulation(sim.DREAMSimulation):
             """ Fraction of energy loss caused by transport through the plasma edge. """
             dt = self.t[1:] - self.t[:-1]
             Q_trans = np.sum(self.P_trans[:,0] * dt)
-            Q_rad = np.sum(self.P_rad * dt)
-            Q_tot = Q_trans + Q_rad
-            return Q_trans/Q_tot
+            return Q_trans/self.W_cold
 
 
     #### DISRUPTION SIMULATION SETUP ######

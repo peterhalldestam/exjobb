@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath('..'))
 import utils
 from DREAM import DREAMOutput
-from DREAMSimulation import DREAMSimulation
-from DREAMSimulation import MaximumIterationsException
+from sim.DREAM.expDecay import ExponentialDecaySimulation
+from sim.DREAM.DREAMSimulation import MaximumIterationsException
 
 OUTPUT_DIR = 'outputs/'
 LOG_PATH = 'test.log'
@@ -17,12 +17,11 @@ LOG_PATH = 'test.log'
 N_NEON      = 1
 N_DEUTERIUM = 1
 
-# log10
-MIN_DEUTERIUM, MAX_DEUTERIUM    = 18, 23
-MIN_NEON, MAX_NEON              = 17, 21
+MIN_DEUTERIUM, MAX_DEUTERIUM    = 1, 2
+MIN_NEON, MAX_NEON              = 1, 2
 
-DEUTERIUM_DENSITIES = np.logspace(MIN_DEUTERIUM, MAX_DEUTERIUM, N_DEUTERIUM)
-NEON_DENSITIES      = np.logspace(MIN_NEON, MAX_NEON, N_NEON)
+DEUTERIUM_DENSITIES = np.linspace(MIN_DEUTERIUM, MAX_DEUTERIUM, N_DEUTERIUM)
+NEON_DENSITIES      = np.linspace(MIN_NEON, MAX_NEON, N_NEON)
 
 def constrain(x, y):
     return 45 < np.log10(x) + 3/2 * np.log10(y) < 53
@@ -49,13 +48,13 @@ def main():
         pass
 
     # Run simulations
-    scanSpace = [(n1, n2) for n1 in DEUTERIUM_DENSITIES for n2 in NEON_DENSITIES if constrain(n1, n2)]
+    scanSpace = [(n1, n2) for n1 in DEUTERIUM_DENSITIES for n2 in NEON_DENSITIES] # if constrain(n1, n2)]
 
     for i, (nD, nNe) in enumerate(scanSpace):
 
         print(f'Running simulation {i+1}/{len(scanSpace)}')
 
-        s = DREAMSimulation(verbose=True)
+        s = ExponentialDecaySimulation(verbose=True)
         s.configureInput(nNe=nNe, nD2=nD)
 
         try:
@@ -63,9 +62,10 @@ def main():
         except MaximumIterationsException:
             print('Skipping this simulation.')
         else:
-            tCQ  = s.output.getCQTime()
-            I_re = s.output.getMaxRECurrent()
-            logging.info(f'{i+1}/{len(scanSpace)},{nNe},{nD},{tCQ},{I_re}')
+            tCQ  = s.output.currentQuenchTime
+            I_re = s.output.maxRECurrent
+            I_ohm = s.output.finalOhmicCurrent
+            logging.info(f'{i+1}/{len(scanSpace)},{nNe},{nD},{tCQ},{I_re},{I_ohm}')
         finally:
             removeOutputFiles()
 
