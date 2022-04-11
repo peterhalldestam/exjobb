@@ -48,7 +48,7 @@ class TransportSimulation(sim.DREAMSimulation):
         def __init__(self, *dos, close=True):
             """ Constructor. """
             self.P_trans    = utils.join('other.scalar.energyloss_T_cold.data', dos, other=True)
-            self.W_cold      = utils.join('other.eqsys.W_cold.integral()', dos, other=True)[0]
+            self.W_cold      = utils.join('eqsys.W_cold.integral()', dos, other=True)[0]
             super().__init__(*dos, close=close)
 
         @property
@@ -111,6 +111,9 @@ class TransportSimulation(sim.DREAMSimulation):
         self.ds = DREAMSettings(self.ds)
         self.ds.fromOutput(out_ioniz)
         do3 = self.runDREAM('3', NT_TQ, self.tStop - TMAX_IONIZ)
+
+        # Remove old output file 
+        os.remove(do2.filename)
 
         # Set the final magnetic pertubation
         self.setTransport(self.input.dBB0, self.input.dBB1,  NT_CQ, TMAX_TOT - self.tStop - TMAX_IONIZ)

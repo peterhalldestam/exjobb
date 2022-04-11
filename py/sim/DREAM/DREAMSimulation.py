@@ -150,7 +150,6 @@ class DREAMSimulation(sim.Simulation):
             for do in dos:
                 if close:
                     if REMOVE_FILES:
-                        print(do.filename, os.path.abspath(do.filename))
                         os.remove(do.filename)
                     do.close()
 
