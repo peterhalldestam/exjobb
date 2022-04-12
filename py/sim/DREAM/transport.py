@@ -98,10 +98,10 @@ class TransportSimulation(sim.DREAMSimulation):
         do1 = self.runDREAM('1', NT_IONIZ, TMAX_IONIZ)
 
         # Test run TQ and obtain time when the temperature reaches a certain value
-        do2 = self.runDREAM('2', 2*NT_TQ, 2*(TMAX_TQ - TMAX_IONIZ))
+        do2 = self.runDREAM('2', NT_TQ, TMAX_TQ - TMAX_IONIZ)
         tmpOut = self.Output(do1, do2, close=False)
         tmax = tmpOut.getTime(tmpOut.averageTemperature, self.input.TQ_stop_fraction)
-        do2.close()
+
 
         if tmax is None:
             msg = f'Final core temperature {tmpOut.T_cold[-1,0]} did not reach {tmpOut.T_cold[0,0] * TQ_STOP_FRACTION}'
@@ -115,15 +115,15 @@ class TransportSimulation(sim.DREAMSimulation):
         self.ds.fromOutput(out_ioniz)
         do3 = self.runDREAM('3', NT_TQ, self.tStop - TMAX_IONIZ)
 
-        # Remove old output file 
-        os.remove(do2.filename)
-
         # Set the final magnetic pertubation
         self.setTransport(self.input.dBB0, self.input.dBB1,  NT_CQ, TMAX_TOT - self.tStop - TMAX_IONIZ)
 
         # Run CQ and runaway plateau part of simulation
         do4 = self.runDREAM('4', NT_CQ, TMAX_TOT - self.tStop - TMAX_IONIZ)
 
+        # Remove old output file
+        os.remove(do2.filename)
+        do2.close()
         # Set output from DREAM output
         self.output = self.Output(do1, do3, do4)
 

@@ -152,8 +152,6 @@ class DREAMSimulation(sim.Simulation):
                     if REMOVE_FILES:
                         os.remove(do.filename)
                     do.close()
-                if REMOVE_FILES:
-                    os.remove(do.filename)
 
                 # paths = [OUTPUT_DIR + path for path in os.listdir(OUTPUT_DIR)]
                 # for fp in paths:
