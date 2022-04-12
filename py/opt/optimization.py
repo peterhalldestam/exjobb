@@ -2,8 +2,8 @@ import sys, os
 import numpy as np
 from dataclasses import dataclass
 
+sys.path.append(os.path.abspath('..'))
 from sim.simulation import Simulation
-from opt.objective import Objective
 
 class Optimization:
 
@@ -15,38 +15,60 @@ class Optimization:
         pass
 
 
-    def __init__(self, sim=None, obj=None, verbose=True, **settings):
+    def __init__(self, simulation=None, parameters={}, simArgs={}, verbose=True, **settings):
         """
         Constructor.
         """
-        if sim is None:
-            raise AttributeError('Expected an Simulation subclass to be provided.')
-        elif not issubclass(sim, Simulation):
-            raise TypeError(f'Expected sim to be a Simulation subclass, not {type(sim)}.')
 
-        if obj is None:
-            raise AttributeError('Expected an objective function to be provided.')
-        elif not issubclass(obj, Objective):
-            raise TypeError(f'Expected obj to be a Objective subclass, not {type(obj)}.')
-
-        self.sim = sim
-        self.obj = obj
+        self.simulation = simulation
         self.verbose = verbose
+
+        # Check if simulation parameters are valid
+        for key in simArgs.keys():
+            if key not in simulation().input.__dataclass_fields__.keys():
+                raise AttributeError(key+' is not an input parameter in the specified simulation.')
+
+        self.simArgs = simArgs
 
         # Configure settings provided by the user.
         try:
             self.settings = self.Settings(**settings)
         except TypeError as err:
-            print(f'Provided settings must exist in {self.Settings().__dataclass_fields__.keys()}')
+            print(f'Provided settings must exist in {Input().__dataclass_fields__.keys()}')
             raise err
 
+        # Check if optimization parameters are valid
+        vals, lowerBound, upperBound = [], [], []
+        for key in parameters.keys():
+            if key not in simulation().input.__dataclass_fields__.keys():
+                raise AttributeError(key+' is not an input parameter in the specified simulation.')
+            else:
+                try:
+                    vals.append(parameters[key]['val'])
+                    lowerBound.append(parameters[key]['min'])
+                    upperBound.append(parameters[key]['max'])
+                except:
+                    raise KeyError('Parameters must have corresponding starting, minimum and maximum values.')
+
+        self.parameters = dict(zip(parameters.keys(), vals))
+        self.lowerBound = tuple(lowerBound)
+        self.upperBound = tuple(upperBound)
+
+
+    def getParameters(self):
+        return np.array(list(self.parameters.values()))
+
+    def setParameters(self, arr):
+        assert len(arr) == len(self.parameters), 'Array length must be equalt to the number of optimization parameters!'
+
+        for i, key in enumerate(self.parameters.keys()):
+            self.parameters[key] = arr[i]
 
     def run(self):
         pass
 
 
-
-    def log(self, out='log.dat'):
+    def writeLog(self, out='log.json'):
         """
         Log progress (...)
         """
