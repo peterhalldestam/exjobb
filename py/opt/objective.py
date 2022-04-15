@@ -5,10 +5,10 @@ from sim.DREAM.transport import TransportSimulation
 
 # objective function parameters
 CRITICAL_RE_CURRENT             = 150e3
-CRITICAL_OHMIC_CURRENT          = 200e3
+CRITICAL_OHMIC_CURRENT          = 300e3
 
 HEAT_LOSS_WEIGHT                = 100
-TRANSPORTED_FRACTION_MAX        = 1e-2
+CRITICAL_TRANSPORTED_FRACTION   = 1e-2
 
 CQ_WEIGHT                       = 100
 CQ_TIME_MIN                     = 50e-3
@@ -72,10 +72,10 @@ def heatLossObjective(output, **kwargs):
 
     critTransp = kwargs.get('critTransp', CRITICAL_TRANSPORTED_FRACTION)
 
-    obj1 = self.baseObjective(output, **kwargs)
+    obj1 = baseObjective(output, **kwargs)
     obj2 = output.transportedFraction / critTransp
 
-    return obj1 + weight2 * obj2
+    return obj1 + obj2
 
 
 ### with step functions
@@ -134,7 +134,7 @@ def stepHeatLossObjective(output, **kwargs):
 
     critTransp = kwargs.get('critTransp', CRITICAL_TRANSPORTED_FRACTION)
 
-    obj1 = self.stepObjective(output, **kwargs)
+    obj1 = stepObjective(output, **kwargs)
     obj2 = linearStep(output.transportedFraction, critTransp)
 
     return obj1 + obj2
