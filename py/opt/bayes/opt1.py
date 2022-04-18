@@ -14,13 +14,14 @@ from sim.DREAM.DREAMSimulation import MaximumIterationsException
 
 from opt.objective import baseObjective
 
-OUTPUT_DIR = '/outputs/'
+LOG_PATH = 'log_test_300.json'
 LARGE_NUMBER = 1_000_000
 
 
-def blackBoxFunction(nD, nNe):
+def blackBoxFunction(log_nD, log_nNe):
 
-    print(nD, nNe)
+    nD = np.power(10, log_nD)
+    nNe = np.power(10, log_nNe)
 
     # Create simulation object
     sim = ExponentialDecaySimulation(verbose=False)
@@ -40,15 +41,15 @@ def blackBoxFunction(nD, nNe):
 def main():
 
     # Bounded region of parameter space
-    bounds = {'nD': (1e19, 1.5e22), 'nNe': (1e15, 1e19)}
+    bounds = {'log_nD': (19, 22.2), 'log_nNe': (15, 19)}
 
     optimizer = BayesianOptimization(f=blackBoxFunction, pbounds=bounds, verbose=2, random_state=1)
 
-
-    logger = JSONLogger(path="./logs.json")
+    logger = JSONLogger(path="LOG_PATH")
     optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
 
-    optimizer.maximize(init_points=1, n_iter=50)
+    print('lesgo')
+    optimizer.maximize(init_points=10, n_iter=300, acq='ei')
 
 
     print(optimizer.max)
