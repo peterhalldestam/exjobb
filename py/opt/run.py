@@ -12,21 +12,21 @@ from powell.PowellOptimization import POWELL_TYPE_RESET, POWELL_TYPE_DLD
 from objective import baseObjective, heatLossObjective
 
 # Starting points and boundries
-DEUTERIUM_START = 6e20
+DEUTERIUM_START = 6e20#4.8e21
 DEUTERIUM_MIN   = 2e20
 DEUTERIUM_MAX   = 2e22
 
-NEON_START  = 6e17
+NEON_START  = 6e17 #4e18
 NEON_MIN    = 0.
 NEON_MAX    = 12e18
 
 # Transport settings
 TRANSPORT   = True
-dBB0        = 1.5e-3
+dBB0        = 40e-4
 
 # Ouptut file
-OUTPUT = 'log_dBB15e-4'
-OUTPUTDIR = 'logs'
+OUTPUT = 'log_dBB40e-4'
+OUTPUTDIR = 'logsNew'
 
 def main():
 
@@ -42,13 +42,10 @@ def main():
 
     parameters = {'nD2': {'val': DEUTERIUM_START, 'min': DEUTERIUM_MIN, 'max': DEUTERIUM_MAX},
                   'nNe': {'val': NEON_START, 'min': NEON_MIN, 'max': NEON_MAX}}
-#    lowerBound = (DEUTERIUM_MIN, NEON_MIN)
-#    upperBound = (DEUTERIUM_MAX, NEON_MAX)
 
     po = PowellOptimization(simulation=simulation, parameters=parameters, simArgs=simArgs,
                             verbose=True, out=OUTPUTDIR+'/'+OUTPUT,
-                            obFun=obFun, maxIter = 20, ftol = 1.,
-#                            upperBound=upperBound, lowerBound=lowerBound,
+                            obFun=obFun, maxIter = 20, ftol = .1,
                             linemin=LINEMIN_BRENT, powellType = POWELL_TYPE_DLD)
 
     output = po.run()

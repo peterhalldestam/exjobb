@@ -48,7 +48,7 @@ def main():
     logger = JSONLogger(path="./logs.json")
     optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
 
-    optimizer.maximize(init_points=1, n_iter=50)
+    optimizer.maximize(init_points=10, n_iter=300, acq='ei')
 
 
     print(optimizer.max)

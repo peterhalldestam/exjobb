@@ -76,6 +76,8 @@ class PowellOptimization(Optimization):
             try:
                 s.run(handleCrash=True) # handleCrash is currently specific to DREAMSimulation
             except TransportException:
+                if self.verbose:
+                    print('Encountered transport exception.')
                 return BIG
             except Exception as err:
                 self.log['P'] = np.vstack((self.log['P'], P))
@@ -221,7 +223,7 @@ class PowellOptimization(Optimization):
 
                     self.log['brackets'].append(tuple([P + x*u for x in bracket]))
 
-                    xmin, fmin = linemin(lineFun, bracket, tol=1e-1, maxIter=20, verbose=self.verbose)
+                    xmin, fmin = linemin(lineFun, bracket, tol=self.settings.ftol, maxIter=20, verbose=self.verbose)
                     P += xmin*u
 
                     self.log['P'] = np.vstack((self.log['P'], P))
@@ -252,7 +254,7 @@ class PowellOptimization(Optimization):
 
                         self.log['brackets'].append(tuple([P + x*uN for x in bracket]))
 
-                        xmin, fmin = linemin(lineFun, bracket, tol=1e-1, maxIter=20, verbose=self.verbose)
+                        xmin, fmin = linemin(lineFun, bracket, tol=self.settings.ftol, maxIter=20, verbose=self.verbose)
                         P += xmin*uN
 
                         self.log['P'] = np.vstack((self.log['P'], P))
@@ -271,7 +273,7 @@ class PowellOptimization(Optimization):
 
                     self.log['brackets'].append(tuple([P + x*uN for x in bracket]))
 
-                    xmin, fmin = linemin(lineFun, bracket, tol=1e-1, maxIter=20, verbose=self.verbose)
+                    xmin, fmin = linemin(lineFun, bracket, tol=self.settings.ftol, maxIter=20, verbose=self.verbose)
                     P += xmin*uN
 
                     self.log['P'] = np.vstack((self.log['P'], P))

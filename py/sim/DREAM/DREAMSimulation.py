@@ -115,6 +115,10 @@ class DREAMSimulation(sim.Simulation):
             """ Magnetic perturbation profiles. """
             r, dBB = utils.getMagneticPerturbation(do, dBB0, dBB1)
             return r, dBB
+            
+        def getTransportTime(self, do: DREAMOutput, dBB0: float, dBB1: float):
+            """ Characteristic transport time. """
+            pass
 
 
     @dataclass(init=False)
