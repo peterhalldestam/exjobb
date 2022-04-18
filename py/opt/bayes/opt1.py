@@ -45,7 +45,7 @@ def main():
 
     optimizer = BayesianOptimization(f=blackBoxFunction, pbounds=bounds, verbose=2, random_state=1)
 
-    logger = JSONLogger(path="LOG_PATH")
+    logger = JSONLogger(path=LOG_PATH)
     optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
 
     print('lesgo')
