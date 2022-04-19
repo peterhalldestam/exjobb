@@ -1,5 +1,6 @@
-import sys, os
+import sys
 sys.path.append(os.path.abspath('..'))
+from sim.DREAM.transport import TransportException
 
 import json
 import numpy as np
@@ -8,8 +9,8 @@ from dataclasses import dataclass
 from types import FunctionType
 
 from optimization import Optimization
-from powell.linemin import Brent, goldenSectionSearch
-from sim.DREAM.transport import TransportException
+from linemin import Brent, goldenSectionSearch
+
 # Arbitrary large and small numbers used in certain steps to represent infinity and avoid dividing by zero.
 ###### MAY BE PROBLEMATIC ######
 BIG = 1e30
@@ -21,7 +22,6 @@ LINEMIN_GSS = 2
 POWELL_TYPE_RESET = 1
 POWELL_TYPE_DLD = 2
 
-
 class PowellOptimization(Optimization):
 
     @dataclass
@@ -29,29 +29,22 @@ class PowellOptimization(Optimization):
         """
         Settings parameters for the optimization algorithm.
         """
-
         # Objective function
         obFun:      FunctionType
-
-        # Domain boundries
-#        lowerBound: tuple
-#        upperBound: tuple
-
-        # Optimization type
-        maximize:   bool        = False
 
         # Termination conditions
         ftol:       float       = 1e-1
         maxIter:    int         = 20
+        
+        # Output file
+        out:        str         = 'log'
 
         # Linemin method and Powell type
         linemin:    int         = LINEMIN_BRENT
         powellType: int         = POWELL_TYPE_RESET
 
-        # Output file for log
-        out:        str         = 'log'
 
-    def __init__(self, simulation=None, parameters={}, simArgs={}, verbose=True, **settings):
+    def __init__(self, simulation=None, parameters={}, simArgs={} verbose=True, **settings):
         """
         Constructor.
         """
@@ -64,9 +57,6 @@ class PowellOptimization(Optimization):
         Any configuration outside of the specified domain automatically returns an arbitrary large number (10^10).
         """
         if (P < self.lowerBound).any() or (P > self.upperBound).any():
-            #if self.settings.maximize:
-            #    return -BIG
-            #else:
             return BIG
 
         else:
@@ -107,8 +97,6 @@ class PowellOptimization(Optimization):
         xip = np.min(allCross[allCross > 0.])
 
         lineBounds = (xin, xip)
-        #lp = xip * np.linalg.norm(u)
-#        xiMin = np.min(np.abs([xin, xip]))
 
         return (-SMALL, xip/10), lineBounds
 
@@ -131,7 +119,7 @@ class PowellOptimization(Optimization):
             dum = bx
             bx = ax
             ax = dum
-
+            
             dum = fb
             fb = fa
             fa = dum
@@ -164,7 +152,7 @@ class PowellOptimization(Optimization):
             return (cx, bx, ax)
         else:
             return (ax, bx, cx)
-
+            
     def run(self):
         """
         Runs the main optimization routine.
@@ -243,7 +231,6 @@ class PowellOptimization(Optimization):
                     if fE < f0 and 2.*(f0-2*fmin+fE) * ((f0-fmin) - Df)**2 < (f0-fE)**2 * Df:
                         if self.verbose:
                             print('Discarding direction of largest decrease.')
-
                         basis[iDf] = uN
 
                         # Minimizes along new direction and sets new P0.
@@ -294,7 +281,9 @@ class PowellOptimization(Optimization):
         """
         Saves the current log in as json file.
         """
-        with open(self.settings.out+'.json', 'w') as fp:
+        
+        out = self.settings.out+'.json'
+        with open(out, 'w') as fp:
             json.dump(self.log, fp, cls=NumpyEncoder)
 
     def isFinished(self):

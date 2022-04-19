@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 import utils
 import sim.DREAM.DREAMSimulation as sim
-from sim.simulationException import SimulationException
 
 from DREAM import DREAMSettings
 import DREAM.Settings.Equations.ColdElectronTemperature as Temperature
@@ -14,16 +13,19 @@ OUTPUT_ID = 'out_transport'
 OUTPUT_DIR = 'outputs/'
 
 
-TQ_STOP_FRACTION    = 1 / 1000 #2000  # 20 kev -> 10 eV
+TQ_STOP_FRACTION    = 1 / 2000  # 20 kev -> 10 eV
 TQ_INITIAL_dBB0     = 4e-3
+
 
 TMAX_TOT    = 1.5e-1
 TMAX_IONIZ  = 1e-6
 TMAX_TQ     = 15e-3
 
+
 NT_IONIZ    = 3000
 NT_TQ       = 6000
 NT_CQ       = 12000
+
 
 class TransportException(SimulationException):
     pass

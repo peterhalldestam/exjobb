@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import sys, os
 import numpy as np
 from dataclasses import dataclass
@@ -18,7 +17,6 @@ TMAX_TQ     = 8e-3
 NT_IONIZ    = 3000 #1000
 NT_TQ       = 8000 #4000
 NT_CQ       = 14000 #4000
-
 
 class ExponentialDecaySimulation(sim.DREAMSimulation):
     """
