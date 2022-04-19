@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import utils
 import sim.DREAM.DREAMSimulation as sim
+from sim.simulationException import SimulationException
 
 from DREAM import DREAMSettings
 import DREAM.Settings.Equations.ColdElectronTemperature as Temperature

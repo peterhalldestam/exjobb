@@ -1,4 +1,4 @@
-import sys
+import sys, os
 sys.path.append(os.path.abspath('..'))
 from sim.DREAM.transport import TransportException
 
@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from types import FunctionType
 
 from optimization import Optimization
-from linemin import Brent, goldenSectionSearch
+from powell.linemin import Brent, goldenSectionSearch
 
 # Arbitrary large and small numbers used in certain steps to represent infinity and avoid dividing by zero.
 ###### MAY BE PROBLEMATIC ######
@@ -44,7 +44,7 @@ class PowellOptimization(Optimization):
         powellType: int         = POWELL_TYPE_RESET
 
 
-    def __init__(self, simulation=None, parameters={}, simArgs={} verbose=True, **settings):
+    def __init__(self, simulation=None, parameters={}, simArgs={}, verbose=True, **settings):
         """
         Constructor.
         """
