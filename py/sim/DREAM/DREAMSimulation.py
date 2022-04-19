@@ -234,9 +234,9 @@ class DREAMSimulation(sim.Simulation):
         self.ds.solver.setType(Solver.NONLINEAR)
         self.ds.solver.setMaxIterations(maxiter=500)
 
-        self.ds.solver.tolerance.set(reltol=2e-6)
         self.ds.solver.tolerance.set(unknown='n_re', reltol=2e-6, abstol=1e5)
         self.ds.solver.tolerance.set(unknown='j_re', reltol=2e-6, abstol=1e-5) # j ~ e*c*n_e ~ n_e*1e-10 ?
+        self.ds.solver.tolerance.set(reltol=1e-2)
 
         # Disable kinetic grids (we run purely fluid simulations)
         self.ds.hottailgrid.setEnabled(False)

@@ -31,6 +31,7 @@ class PowellOptimization(Optimization):
         """
         # Objective function
         obFun:      FunctionType
+        maximize:   bool        = False
 
         # Termination conditions
         ftol:       float       = 1e-1
