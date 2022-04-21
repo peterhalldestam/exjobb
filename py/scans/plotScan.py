@@ -4,18 +4,39 @@ import logging
 import numpy as np
 import matplotlib.pyplot as plt
 
-import alphashape
+import opt.objective as obj
+
+PLOT_OBJECTIVE = True   # if false, I_re is plotted
+SHOW_POINTS = False
+LOG_PATH = 'data/large_opaque_neon_deuterium.log'
+LEVELS= [0., 15., 30., 45., 60., 75., 90., 105., 120., 135., 150., 165., 180.,
+         195., 210., 225., 240., 255., 270., 285., 300., 315., 330., 345.]
 
 
-SHOW_BORDER = False
-SHOW_POINTS = True #False
-LOG_PATH = 'scan_zoomed2.log'
+def sigmoid(x, x0=0, k=1):
+    """
+    Hyperbolic tangent sigmoid function.
+    """
+    return 1/2 + 1/2*np.tanh(k*(x-x0))
 
+def baseObjective(I_re, I_ohm, tCQ):
+    """
+    Returns the base objective function for when optimizing disruption
+    simulations using DREAM.
+    """
+
+    obj1 = I_re / obj.CRITICAL_RE_CURRENT
+    obj2 = I_ohm / obj.CRITICAL_OHMIC_CURRENT
+    obj3 = sigmoid(-tCQ, -obj.CQ_TIME_MIN, obj.SLOPE_LEFT)
+    obj4 = sigmoid(tCQ, obj.CQ_TIME_MAX, obj.SLOPE_RIGHT)
+
+    return obj1 + obj2 + obj.CQ_WEIGHT * (obj3 + obj4)
 
 def main():
 
-    nD, nNe, tCQ, I_re = [], [], [], []
+    nD, nNe, tCQ, I_re, I_ohm = [], [], [], [], []
     nD_, nNe_, tCQ_ = [], [], []
+    target = []
 
     if not os.path.exists(LOG_PATH):
         raise FileNotFoundError(f'The log file {LOG_PATH} does not exist!')
@@ -30,6 +51,8 @@ def main():
             nD.append(float(data[1]))
             tCQ.append(np.inf if data[2]=='inf' else float(data[2]))
             I_re.append(float(data[3]))
+            I_ohm.append(float(data[4]))
+            target.append(baseObjective(I_re[-1], I_ohm[-1], tCQ[-1]))
 
             if not data[2] == 'inf':
                 nNe_.append(float(data[0]))
@@ -47,33 +70,23 @@ def main():
 
     fig, ax = plt.subplots()
 
-#    fig2, ax2 = plt.subplots()
+    if PLOT_OBJECTIVE:
 
-    # Current plot
-    ax.tricontour(nD, nNe, I_re, levels=14, linewidths=0.5, colors='k')
-    cntr2 = ax.tricontourf(nD, nNe, I_re, levels=14, cmap="RdBu_r")
-#    cntr2 = ax2.contourf(np.array(nD).reshape((20,20)), np.array(nNe).reshape((20,20)), np.log10(np.array(I_re).reshape((20,20))), levels=14, cmap="RdBu_r")
-#    ax2.contour(np.array(nD).reshape((20,20)), np.array(nNe).reshape((20,20)), np.log10(np.array(I_re).reshape((20,20))), levels=14, linewidths=0.5, colors='k')
-    fig.colorbar(cntr2, ax=ax)
+        cntr = ax.tricontourf(nD, nNe, target, levels=LEVELS, cmap="RdBu_r")
+        fig.colorbar(cntr, ax=ax)
 
-    # Current quench time plot
-    ax.tricontour(nD_, nNe_, tCQ_, levels=[50e-3, 150e-3], linewidths=2, linestyles=['dashed', 'dotted'])
+    else:
 
+        # Current plot
+        ax.tricontour(nD, nNe, I_re, levels=14, linewidths=0.5, colors='k')
+        cntr2 = ax.tricontourf(nD, nNe, I_re, levels=14, cmap="RdBu_r")
+    #    cntr2 = ax2.contourf(np.array(nD).reshape((20,20)), np.array(nNe).reshape((20,20)), np.log10(np.array(I_re).reshape((20,20))), levels=14, cmap="RdBu_r")
+    #    ax2.contour(np.array(nD).reshape((20,20)), np.array(nNe).reshape((20,20)), np.log10(np.array(I_re).reshape((20,20))), levels=14, linewidths=0.5, colors='k')
+        fig.colorbar(cntr2, ax=ax)
 
-    if SHOW_BORDER:
-        points = [(n1, n2) for n1, n2 in zip(nD_, nNe_)]
-        alpha = 0.95 * alphashape.optimizealpha(points)
-        hull = alphashape.alphashape(points, alpha)
-        border = hull.exterior.coords.xy
+        # Current quench time plot
+        ax.tricontour(nD_, nNe_, tCQ_, levels=[50e-3, 150e-3], linewidths=2, linestyles=['dashed', 'dotted'])
 
-        nD_inf, nNe_inf = [], []
-        for n1, n2 in zip(border[0], border[1]):
-            print(n1, n2)
-            if n1 < 1.5e22 and n2 < 8e18:
-                nD_inf.append(n1)
-                nNe_inf.append(n2)
-
-        ax.plot(nD_inf[:-1], nNe_inf[:-1], 'r')
 
     if SHOW_POINTS:
         for t, n1, n2 in zip(tCQ, nD, nNe):
