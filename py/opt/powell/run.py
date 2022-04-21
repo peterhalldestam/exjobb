@@ -22,10 +22,10 @@ NEON_MAX    = 12e18
 
 # Transport settings
 TRANSPORT   = True
-dBB0        = 40e-4
+dBB0        = 55e-4
 
 # Ouptut file
-OUTPUT = 'log_dBB40e-4'
+OUTPUT = 'log_dBB55e-4'
 OUTPUTDIR = 'logsNew'
 
 def main():

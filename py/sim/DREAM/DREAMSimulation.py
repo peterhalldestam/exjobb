@@ -115,6 +115,10 @@ class DREAMSimulation(sim.Simulation):
             """ Magnetic perturbation profiles. """
             r, dBB = utils.getMagneticPerturbation(do, dBB0, dBB1)
             return r, dBB
+            
+        def getTransportTime(self, do: DREAMOutput, dBB0: float, dBB1: float):
+            """ Characteristic transport time. """
+            pass
 
 
     @dataclass(init=False)
@@ -226,13 +230,13 @@ class DREAMSimulation(sim.Simulation):
         self.ds.other.include(['fluid'])
 
         # Set solver settings
-        self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
+        self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_MKL)
         self.ds.solver.setType(Solver.NONLINEAR)
         self.ds.solver.setMaxIterations(maxiter=500)
 
-        self.ds.solver.tolerance.set(reltol=2e-6)
         self.ds.solver.tolerance.set(unknown='n_re', reltol=2e-6, abstol=1e5)
         self.ds.solver.tolerance.set(unknown='j_re', reltol=2e-6, abstol=1e-5) # j ~ e*c*n_e ~ n_e*1e-10 ?
+        self.ds.solver.tolerance.set(reltol=1e-2)
 
         # Disable kinetic grids (we run purely fluid simulations)
         self.ds.hottailgrid.setEnabled(False)
@@ -277,9 +281,9 @@ class DREAMSimulation(sim.Simulation):
         if self.input.nH:
             self.ds.eqsys.n_i.addIon('H', n=self.input.nH, Z=1, Z0=1, hydrogen=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
         if self.input.nD:
-            self.ds.eqsys.n_i.addIon('D', n=self.input.nD, Z=1, Z0=1, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_TRANSPARENT)
+            self.ds.eqsys.n_i.addIon('D', n=self.input.nD, Z=1, Z0=1, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
         if self.input.nT:
-            self.ds.eqsys.n_i.addIon('T', n=self.input.nT, Z=1, Z0=1, tritium=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_TRANSPARENT)
+            self.ds.eqsys.n_i.addIon('T', n=self.input.nT, Z=1, Z0=1, tritium=True, iontype=Ions.IONS_DYNAMIC, opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
             self.ds.eqsys.n_re.setTritium(True)
         if self.input.nHe:
             raise NotImplementedError('Helium is not yet implemented...')
@@ -355,7 +359,7 @@ class DREAMSimulation(sim.Simulation):
         if self.input.nD2:
             r, n = self.input.getInitialDensity(self.do, self.input.nD2, self.input.cD2)
             self.ds.eqsys.n_i.addIon('D2', Z=1, iontype=Ions.IONS_DYNAMIC, Z0=0, n=n, r=r,
-            opacity_mode=Ions.ION_OPACITY_MODE_TRANSPARENT)
+            opacity_mode=Ions.ION_OPACITY_MODE_GROUND_STATE_OPAQUE)
 
         if self.input.nNe:
             r, n = self.input.getInitialDensity(self.do, self.input.nNe, self.input.cNe)

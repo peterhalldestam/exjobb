@@ -14,10 +14,9 @@ TMAX_TOT    = 2e-1
 TMAX_IONIZ  = 1e-6
 TMAX_TQ     = 8e-3
 
-NT_IONIZ    = 3000
-NT_TQ       = 8000
-NT_CQ       = 12000
-
+NT_IONIZ    = 3000 #1000
+NT_TQ       = 8000 #4000
+NT_CQ       = 14000 #4000
 
 class ExponentialDecaySimulation(sim.DREAMSimulation):
     """
@@ -58,7 +57,7 @@ class ExponentialDecaySimulation(sim.DREAMSimulation):
         # Resolution parameters
         self.nt_ioniz   = self.input.nt_ioniz
         self.nt_TQ      = self.input.nt_TQ
-        self.nt_CQ      = self.input.nt_ioniz
+        self.nt_CQ      = self.input.nt_CQ
         self.tmax_ioniz = self.input.tmax_ioniz
         self.tmax_TQ    = self.input.tmax_TQ - self.input.tmax_ioniz
         self.tmax_CQ    = self.input.tmax_tot - self.input.tmax_TQ - self.input.tmax_ioniz

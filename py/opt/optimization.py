@@ -68,7 +68,7 @@ class Optimization:
         pass
 
 
-    def writeLog(self, out='log.json'):
+    def writeLog(self):
         """
         Log progress (...)
         """
