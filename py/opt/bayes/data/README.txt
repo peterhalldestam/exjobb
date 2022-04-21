@@ -24,7 +24,7 @@ expDecay2_old.json  :   Finished 1+5 runs of ExponentialDecaySimulation
                             Posterior mean is constant!
 
 
-New data (optimizes over base-10 logarithmic input space)
+New data (updated objective function, optimizes over base-10 logarithmic input space)
 
 expDecay3.json      :   Finished 10+300 runs of ExponentialDecaySimulation
                         Input params:
