@@ -2,7 +2,7 @@ import sys, os
 import pathlib
 import numpy as np
 import matplotlib.pyplot as plt
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 
 # sys.path.append(os.path.abspath('..'))
 import utils
@@ -93,6 +93,10 @@ class DREAMSimulation(sim.Simulation):
         # Inverse wall time
         tau0:   float = 0.
 
+        @property
+        def asDict(self):
+            """ Returns input data as dictionary. """
+            return {key: val for key, val in asdict(self).items() if self.__dataclass_fields__[key].repr}
 
         @property
         def initialTemperature(self):
@@ -115,7 +119,7 @@ class DREAMSimulation(sim.Simulation):
             """ Magnetic perturbation profiles. """
             r, dBB = utils.getMagneticPerturbation(do, dBB0, dBB1)
             return r, dBB
-            
+
         def getTransportTime(self, do: DREAMOutput, dBB0: float, dBB1: float):
             """ Characteristic transport time. """
             pass
