@@ -8,7 +8,7 @@ from mpl_toolkits import mplot3d
 
 from opt1 import blackBoxFunction
 
-LOG_PATH = 'data/logs_.json'
+LOG_PATH = 'data/expDecay3.json'
 
 bounds = {'log_nD': (1e19, 2e22), 'log_nNe': (1e15, 1e19)}
 
@@ -40,27 +40,37 @@ def plot_gp(opt, inp):
 
     mu, sigma = posterior(opt, input, output, inp)
 
+
+
     np.append(inp, input, axis=0)
+    input = 10**input
+    inp = 10**inp
 
     ax = plt.axes()
     # ax = plt.axes(projection='3d')
 
     cntr = ax.tricontourf(inp[:,0], inp[:,1], mu, levels=30, cmap="RdBu_r")
-    fig.colorbar(cntr, ax=ax)
+    fig.colorbar(cntr, ax=ax, label='Objective function')
 
     print(cntr.levels)
 
     # surf = ax.plot_trisurf(inp[:,0], inp[:,1], mu, linewidth=0.1, alpha=.25)
     # fig.colorbar(surf)
     # ax.scatter(inp[:,0], inp[:,1], mu, 'g')
-    ax.scatter(input[10:,0], input[10:,1], c='b', s=1, alpha=.3)
-    ax.scatter(input[:10,0], input[:10,1], c='k', s=20, alpha=.3)
+    ax.scatter(input[:10,0], input[:10,1], c='k', s=10, alpha=.3, label='Initial random samples')
+    ax.scatter(input[10:,0], input[10:,1], c='k', s=2, alpha=.4, label='From acquisition function')
 
 
-    ax.scatter(opt.max['params']['log_nD'], opt.max['params']['log_nNe'], c='r', s=20)
+    print(opt.max)
+    ax.scatter(10**opt.max['params']['log_nD'], 10**opt.max['params']['log_nNe'], c='y', s=30, marker='*', label='Optimal input parameters')
 
+    ax.scatter(1e20, 2e18, c='r', s=20, marker='*', label='Bad input parameters')
 
-
+    ax.set_xlabel('injected deuterium $(m^{-3})$')
+    ax.set_ylabel('injected neon $(m^{-3})$')
+    ax.set_yscale('log')
+    ax.set_xscale('log')
+    plt.legend(loc='lower left')
     plt.show()
 
 def main():
