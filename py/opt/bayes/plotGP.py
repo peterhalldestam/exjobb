@@ -5,10 +5,11 @@ import matplotlib.pyplot as plt
 from bayes_opt import BayesianOptimization
 from bayes_opt.util import load_logs
 from mpl_toolkits import mplot3d
+import colorcet as cc
 
 from opt1 import blackBoxFunction
 
-LOG_PATH = 'data/logs_.json'
+LOG_PATH = 'dataNew/log_dBB30e-4.json'
 
 bounds = {'log_nD': (1e19, 2e22), 'log_nNe': (1e15, 1e19)}
 
@@ -32,6 +33,12 @@ def plot_gp(opt, inp):
 
     input = np.array([[res['params']['log_nD'], res['params']['log_nNe']] for res in opt.res])
     output = -np.array([res["target"] for res in opt.res])
+    
+    input = input[:110]
+    output = output[:110]
+    #########
+   # output[output==1e6] = 200.
+    #########
 
 
     # input = np.log10(input)
@@ -45,7 +52,7 @@ def plot_gp(opt, inp):
     ax = plt.axes()
     # ax = plt.axes(projection='3d')
 
-    cntr = ax.tricontourf(inp[:,0], inp[:,1], mu, levels=30, cmap="RdBu_r")
+    cntr = ax.tricontourf(inp[:,0], inp[:,1], mu, levels=100, cmap=cc.cm.fire, vmax=800.)#, vmin=-500., vmax=1000.)
     fig.colorbar(cntr, ax=ax)
 
     print(cntr.levels)
@@ -53,7 +60,7 @@ def plot_gp(opt, inp):
     # surf = ax.plot_trisurf(inp[:,0], inp[:,1], mu, linewidth=0.1, alpha=.25)
     # fig.colorbar(surf)
     # ax.scatter(inp[:,0], inp[:,1], mu, 'g')
-    ax.scatter(input[10:,0], input[10:,1], c='b', s=1, alpha=.3)
+    ax.scatter(input[10:,0], input[10:,1], c='b', s=10, alpha=1.)
     ax.scatter(input[:10,0], input[:10,1], c='k', s=20, alpha=.3)
 
 
