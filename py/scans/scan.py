@@ -11,20 +11,17 @@ from sim.DREAM.expDecay import ExponentialDecaySimulation
 from sim.DREAM.DREAMSimulation import MaximumIterationsException
 
 OUTPUT_DIR = 'outputs/'
-LOG_PATH = 'scan_zoomed2.log'
+LOG_PATH = 'data/expDecay2.log'
 
 
-N_NEON      = 30
-N_DEUTERIUM = 30
+N_NEON      = 40
+N_DEUTERIUM = 40
 
-MIN_DEUTERIUM, MAX_DEUTERIUM    = 19, 23#5e21, 1.6e22
-MIN_NEON, MAX_NEON              = 16, 20#1e16, 1e17
+MIN_DEUTERIUM, MAX_DEUTERIUM    = 18, 22.2#5e21, 1.6e22
+MIN_NEON, MAX_NEON              = 15, 20#1e16, 1e17
 
 DEUTERIUM_DENSITIES = np.logspace(MIN_DEUTERIUM, MAX_DEUTERIUM, N_DEUTERIUM)
 NEON_DENSITIES      = np.logspace(MIN_NEON, MAX_NEON, N_NEON)
-
-def constrain(x, y):
-    return 46 < np.log10(x) + 3/2 * np.log10(y) < 53
 
 def removeOutputFiles():
     """
@@ -48,7 +45,7 @@ def main():
         pass
 
     # Run simulations
-    scanSpace = [(n1, n2) for n1 in DEUTERIUM_DENSITIES for n2 in NEON_DENSITIES if constrain(n1, n2)]
+    scanSpace = [(n1, n2) for n1 in DEUTERIUM_DENSITIES for n2 in NEON_DENSITIES]
 
     for i, (nD, nNe) in enumerate(scanSpace):
 
