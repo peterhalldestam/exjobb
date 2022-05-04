@@ -5,7 +5,7 @@ from sim.DREAM.transport import TransportException
 import json
 import numpy as np
 from numpyencoder import NumpyEncoder
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from types import FunctionType
 
 from optimization import Optimization
@@ -35,6 +35,7 @@ class PowellOptimization(Optimization):
 
         # Termination conditions
         ftol:       float       = 1e-1
+        xtol:       float       = 1e-1
         maxIter:    int         = 20
         
         # Output file
@@ -43,7 +44,13 @@ class PowellOptimization(Optimization):
         # Linemin method and Powell type
         linemin:    int         = LINEMIN_BRENT
         powellType: int         = POWELL_TYPE_RESET
-
+        
+        @property
+        def asDict(self):
+            """ Returns input data as dictionary. """
+            tempDict = {key: val for key, val in asdict(self).items() if self.__dataclass_fields__[key].repr and key!='obFun'}
+            tempDict['obFun'] = self.obFun.__name__
+            return tempDict
 
     def __init__(self, simulation=None, parameters={}, simArgs={}, verbose=True, **settings):
         """
@@ -51,29 +58,42 @@ class PowellOptimization(Optimization):
         """
         super().__init__(simulation=simulation, parameters=parameters, simArgs=simArgs, verbose=verbose, **settings)
         self.log = None
+        
+        # Log data
+        self.nFunEval = 0
+        self.nSim = 0
+        self.nExcept = 0
+
 
     def _restrainedFun(self, P):
         """
         Modified base function that incorporates parameter boundries in the optimization process and runs simulation.
         Any configuration outside of the specified domain automatically returns an arbitrary large number (10^10).
         """
+        
+        self.nFunEval += 1
+        
         if (P < self.lowerBound).any() or (P > self.upperBound).any():
             return BIG
 
         else:
+            self.nSim += 1
+        
             self.setParameters(P)
             s = self.simulation(verbose=False, **self.parameters, **self.simArgs)
 
             try:
                 s.run(handleCrash=True) # handleCrash is currently specific to DREAMSimulation
             except TransportException:
+                self.nExcept += 1
+                
                 if self.verbose:
                     print('Encountered transport exception.')
                 return BIG
             except Exception as err:
-                self.log['P'] = np.vstack((self.log['P'], P))
-                self.log['fun'] = np.append(self.log['fun'], None)
-                self.writeLog()
+                self.nExcept += 1
+            
+                self.updateLog(P, None, None)
                 print(f'Simulation error obtained for parameters:\n {self.parameters}\n')
                 raise err
 
@@ -101,7 +121,7 @@ class PowellOptimization(Optimization):
 
         return (-SMALL, xip/10), lineBounds
 
-    def _findBracket(self, fun, b0, bounds, gamma=2, verbose=False):
+    def _findBracket(self, fun, b0, bounds, gamma=1, verbose=False):
         """
         Simple algorithm used to initially bracket a local minimum by expontentially increasing step sizes.
 
@@ -127,15 +147,20 @@ class PowellOptimization(Optimization):
 
             swap = True
 
-        cx = bx + gamma*(bx-ax)
+        L = (bx-ax)
+        cx = bx + gamma*L
         fc = fun(cx)
-
+        
         i=1
         while fc <= fb:
             i += 1
-
             gamma *= 2
-            cx = bx + gamma*(bx-ax)
+            
+            temp = bx
+            bx = cx
+            cx = bx + gamma*L
+            ax = temp
+            fb = fc
 
             if cx > ux:
                 cx = ux
@@ -173,7 +198,10 @@ class PowellOptimization(Optimization):
         fp = BIG
         fmin = self._restrainedFun(P0)
 
-        self.log = {'P': np.copy(P), 'fun': np.array([fmin]), 'brackets': []}
+        self.log = {'P': np.copy(P), 'fun': np.array([fmin]), 'brackets': [],
+                    'nFunEval': [self.nFunEval], 'nSim': [self.nSim], 'nExcept': [self.nExcept],
+                    'parameters': self.inputParameters, 'settings': self.settings.asDict}                
+        self.writeLog()
 
         # Main loop that updates the basis to avoid linear dependence.
         i = -1
@@ -210,14 +238,10 @@ class PowellOptimization(Optimization):
                     b0, lineBounds = self._initBracket(P, u)
                     bracket = self._findBracket(lineFun, b0, lineBounds, verbose=self.verbose)
 
-                    self.log['brackets'].append(tuple([P + x*u for x in bracket]))
-
-                    xmin, fmin = linemin(lineFun, bracket, tol=self.settings.ftol, maxIter=20, verbose=self.verbose)
+                    xmin, fmin = linemin(lineFun, bracket, tol=self.settings.xtol, maxIter=20, verbose=self.verbose)
                     P += xmin*u
 
-                    self.log['P'] = np.vstack((self.log['P'], P))
-                    self.log['fun'] = np.append(self.log['fun'], fmin)
-                    self.writeLog()
+                    self.updateLog(P, fmin, tuple([P + x*u for x in bracket]))
 
                 # Creates a new basis vector from the total distance moved in the previous cycle.
                 uN = P - P0
@@ -240,14 +264,10 @@ class PowellOptimization(Optimization):
                         b0, lineBounds = self._initBracket(P, uN)
                         bracket = self._findBracket(lineFun, b0, lineBounds, verbose=self.verbose)
 
-                        self.log['brackets'].append(tuple([P + x*uN for x in bracket]))
-
-                        xmin, fmin = linemin(lineFun, bracket, tol=self.settings.ftol, maxIter=20, verbose=self.verbose)
+                        xmin, fmin = linemin(lineFun, bracket, tol=self.settings.xtol, maxIter=20, verbose=self.verbose)
                         P += xmin*uN
 
-                        self.log['P'] = np.vstack((self.log['P'], P))
-                        self.log['fun'] = np.append(self.log['fun'], fmin)
-                        self.writeLog()
+                        self.updateLog(P, fmin, tuple([P + x*uN for x in bracket]))
 
                 else:
                     basis[:-1] = basis[1:]
@@ -259,14 +279,10 @@ class PowellOptimization(Optimization):
                     b0, lineBounds = self._initBracket(P, uN)
                     bracket = self._findBracket(lineFun, b0, lineBounds, verbose=self.verbose)
 
-                    self.log['brackets'].append(tuple([P + x*uN for x in bracket]))
-
-                    xmin, fmin = linemin(lineFun, bracket, tol=self.settings.ftol, maxIter=20, verbose=self.verbose)
+                    xmin, fmin = linemin(lineFun, bracket, tol=self.settings.xtol, maxIter=20, verbose=self.verbose)
                     P += xmin*uN
-
-                    self.log['P'] = np.vstack((self.log['P'], P))
-                    self.log['fun'] = np.append(self.log['fun'], fmin)
-                    self.writeLog()
+                    
+                    self.updateLog(P, fmin, tuple([P + x*uN for x in bracket]))
 
                 P0 = np.copy(P)
 
@@ -277,6 +293,24 @@ class PowellOptimization(Optimization):
         self.writeLog()
         return P, fmin
 
+
+    def updateLog(self, P, fun, bracket, write=True):
+        """
+        Updates current content of the log.
+        """
+        self.log['P'] = np.vstack((self.log['P'], P))
+        self.log['fun'] = np.append(self.log['fun'], fun)
+        self.log['brackets'].append(bracket)
+        
+        self.log['nFunEval'].append(self.nFunEval)    
+        self.log['nSim'].append(self.nSim)
+        self.log['nExcept'].append(self.nExcept)
+
+        if write:
+            self.writeLog()
+        
+        
+        
 
     def writeLog(self):
         """

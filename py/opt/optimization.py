@@ -22,6 +22,7 @@ class Optimization:
 
         self.simulation = simulation
         self.verbose = verbose
+        self.inputParameters = parameters
 
         # Check if simulation parameters are valid
         for key in simArgs.keys():
@@ -50,10 +51,10 @@ class Optimization:
                 except:
                     raise KeyError('Parameters must have corresponding starting, minimum and maximum values.')
 
+
         self.parameters = dict(zip(parameters.keys(), vals))
         self.lowerBound = tuple(lowerBound)
         self.upperBound = tuple(upperBound)
-
 
     def getParameters(self):
         return np.array(list(self.parameters.values()))
