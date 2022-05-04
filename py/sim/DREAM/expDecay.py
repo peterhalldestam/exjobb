@@ -10,13 +10,13 @@ import DREAM.Settings.Equations.ColdElectronTemperature as Temperature
 TQ_DECAY_TIME           = 1e-3
 TQ_FINAL_TEMPERATURE    = 10  # 20 kev -> 10 eV
 
-TMAX_TOT    = 2e-1
+TMAX_TOT    = 15e-2
 TMAX_IONIZ  = 1e-6
 TMAX_TQ     = 8e-3
 
-NT_IONIZ    = 3000 #1000
-NT_TQ       = 8000 #4000
-NT_CQ       = 14000 #4000
+NT_IONIZ    = 3000
+NT_TQ       = 8000
+NT_CQ       = 14000
 
 class ExponentialDecaySimulation(sim.DREAMSimulation):
     """
