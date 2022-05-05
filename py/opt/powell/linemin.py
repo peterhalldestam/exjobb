@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.constants as const
 
-def findBracket(fun, b0, bounds, gamma=2, verbose=False):
+def findBracket(fun, b0, bounds, gamma=1, verbose=False):
     """
     Simple algorithm used to initially bracket a local minimum by expontentially increasing step sizes.
     
@@ -28,15 +28,20 @@ def findBracket(fun, b0, bounds, gamma=2, verbose=False):
         swap = True
         print('swap done')
         
-    cx = bx + gamma*(bx-ax)
+    L = (bx-ax)
+    cx = bx + gamma*L
     fc = fun(cx)
     
     i=1
     while fc <= fb:
         i += 1
-        
         gamma *= 2
-        cx = bx + gamma*(bx-ax)
+        
+        temp = bx
+        bx = cx
+        cx = bx + gamma*L
+        ax = temp
+        fb = fc
         
         if cx > ux:
             cx = ux

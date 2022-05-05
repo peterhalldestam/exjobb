@@ -151,7 +151,7 @@ class DREAMSimulation(sim.Simulation):
             self.I_ohm      = utils.join('eqsys.j_ohm.current()', dos)
             self.I_tot      = utils.join('eqsys.j_tot.current()', dos)
             self.T_cold     = utils.join('eqsys.T_cold.data', dos)
-
+            
             assert len(self.r) == NR
             assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
 

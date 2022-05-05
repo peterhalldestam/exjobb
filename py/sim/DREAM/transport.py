@@ -19,13 +19,13 @@ TQ_INITIAL_dBB0     = 4e-3
 
 
 TMAX_TOT    = 1.5e-1
-TMAX_IONIZ  = 1e-6
+TMAX_IONIZ  = 2e-6
 TMAX_TQ     = 10e-3
 
 
-NT_IONIZ    = 3000
+NT_IONIZ    = 6000 # previously 3000
 NT_TQ       = 8000
-NT_CQ       = 12000
+NT_CQ       = 14000
 
 
 class TransportException(SimulationException):

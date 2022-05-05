@@ -12,21 +12,32 @@ from powell.PowellOptimization import POWELL_TYPE_RESET, POWELL_TYPE_DLD
 from objective import baseObjective, heatLossObjective
 
 # Starting points and boundries
-DEUTERIUM_START = 6e20#4.8e21
-DEUTERIUM_MIN   = 2e20
-DEUTERIUM_MAX   = 2e22
+DEUTERIUM_START = 1e19 #6e20
+DEUTERIUM_MIN   = 1e17 #2e20
+DEUTERIUM_MAX   = 1e22
 
-NEON_START  = 6e17 #4e18
-NEON_MIN    = 0.
-NEON_MAX    = 12e18
+NEON_START      = 1e19 #5e18 #6e17
+NEON_MIN        = 1e15
+NEON_MAX        = 1e21 #12e18
+
+# Profile settings
+SHAPING     = False
+
+CD2_START   = 0.
+CD2_MIN     = -5.
+CD2_MAX     = 5.
+
+CNE_START   = 0.
+CNE_MIN     = -5.
+CNE_MAX     = 5.
 
 # Transport settings
 TRANSPORT   = True
-dBB0        = 55e-4
+dBB0        = 40e-4
 
 # Ouptut file
-OUTPUT = 'log_dBB55e-4'
-OUTPUTDIR = 'logsNew'
+OUTPUT = 'log_dBB40e-4'
+OUTPUTDIR = 'data_NewStart'
 
 def main():
 
@@ -39,9 +50,13 @@ def main():
     else:
         simulation = ExponentialDecaySimulation
         obFun = baseObjective
-
+    
     parameters = {'nD2': {'val': DEUTERIUM_START, 'min': DEUTERIUM_MIN, 'max': DEUTERIUM_MAX},
                   'nNe': {'val': NEON_START, 'min': NEON_MIN, 'max': NEON_MAX}}
+
+    if SHAPING:
+        parameters['cD2'] = {'val': CD2_START, 'min': CD2_MIN, 'max': CD2_MAX}
+        parameters['cNe'] = {'val': CNE_START, 'min': CNE_MIN, 'max': CNE_MAX}
 
     po = PowellOptimization(simulation=simulation, parameters=parameters, simArgs=simArgs,
                             verbose=True, out=OUTPUTDIR+'/'+OUTPUT,
