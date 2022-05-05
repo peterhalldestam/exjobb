@@ -3,12 +3,14 @@ import sys, os
 import logging
 import numpy as np
 import matplotlib.pyplot as plt
+import colorcet as cc
 
 import opt.objective as obj
 
-PLOT_OBJECTIVE = True   # if false, I_re is plotted
+PLOT_OBJECTIVE = False   # if false, I_re is plotted
 SHOW_POINTS = False
-LOG_PATH = 'data/large_opaque_neon_deuterium.log'
+LOG_PATH = 'data/expDecay2.log'
+# LOG_PATH = 'scan_expDecay_aborted.log'
 LEVELS= [0., 15., 30., 45., 60., 75., 90., 105., 120., 135., 150., 165., 180.,
          195., 210., 225., 240., 255., 270., 285., 300., 315., 330., 345.]
 
@@ -53,7 +55,6 @@ def main():
             I_re.append(float(data[3]))
             I_ohm.append(float(data[4]))
             target.append(baseObjective(I_re[-1], I_ohm[-1], tCQ[-1]))
-
             if not data[2] == 'inf':
                 nNe_.append(float(data[0]))
                 nD_.append(float(data[1]))
@@ -72,17 +73,18 @@ def main():
 
     if PLOT_OBJECTIVE:
 
-        cntr = ax.tricontourf(nD, nNe, target, levels=LEVELS, cmap="RdBu_r")
+        cntr = ax.tricontourf(nD, nNe, target,  cmap="RdBu_r")
         fig.colorbar(cntr, ax=ax)
 
     else:
+        # levels = np.linspace(0, 1e3, 100)
 
         # Current plot
-        ax.tricontour(nD, nNe, I_re, levels=14, linewidths=0.5, colors='k')
-        cntr2 = ax.tricontourf(nD, nNe, I_re, levels=14, cmap="RdBu_r")
+        # ax.tricontour(nD, nNe, I_ohm, levels=14, linewidths=0.5, colors='k')
+        cntr2 = ax.tricontourf(nD, nNe, np.log10(I_ohm), levels=6, cmap=cc.cm.diverging_bwr_40_95_c42)
     #    cntr2 = ax2.contourf(np.array(nD).reshape((20,20)), np.array(nNe).reshape((20,20)), np.log10(np.array(I_re).reshape((20,20))), levels=14, cmap="RdBu_r")
     #    ax2.contour(np.array(nD).reshape((20,20)), np.array(nNe).reshape((20,20)), np.log10(np.array(I_re).reshape((20,20))), levels=14, linewidths=0.5, colors='k')
-        fig.colorbar(cntr2, ax=ax)
+        fig.colorbar(cntr2, ax=ax, ticks=np.linspace(0, 7, 8), label=r'Maximum RE current $\log_{10}(I_{\rm RE})$')
 
         # Current quench time plot
         ax.tricontour(nD_, nNe_, tCQ_, levels=[50e-3, 150e-3], linewidths=2, linestyles=['dashed', 'dotted'])
@@ -95,7 +97,14 @@ def main():
             else:
                 ax.plot(n1, n2, 'ko', ms=2, alpha=.5)
 
+    ax.scatter(1.2521550826399989e+22, 4.798231975918889e+16, c='g', marker='*', s=40, label='Optimum')
+    ax.scatter(1e22, 6.2e16, c='r', marker='*', s=40, label='Suboptimum')
 
+    plt.title('Maximum RE current')
+    plt.legend(loc='lower left')
+
+    ax.set_xlabel(r'Injected deuterium $n_{\rm D}$ (m$^{-1}$)')
+    ax.set_ylabel(r'Injected neon $n_{\rm Ne}$ (m$^{-1}$)')
 
     ax.set_yscale('log')
     ax.set_xscale('log')
