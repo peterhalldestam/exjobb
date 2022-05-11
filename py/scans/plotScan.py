@@ -6,6 +6,21 @@ import matplotlib.pyplot as plt
 import colorcet as cc
 
 import opt.objective as obj
+SMALL_SIZE = 12
+MEDIUM_SIZE = 15
+BIGGER_SIZE = 20
+
+plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "sans-serif",
+    "font.serif": ["Computer Modern Roman"]})
 
 PLOT_OBJECTIVE = False   # if false, I_re is plotted
 SHOW_POINTS = False
@@ -69,25 +84,36 @@ def main():
     #print(np.array(nNe).reshape((20,20)))
     #print(np.array(I_re).reshape((20,20)))
 
-    fig, ax = plt.subplots()
+
 
     if PLOT_OBJECTIVE:
-
+        fig, ax = plt.subplots()
         cntr = ax.tricontourf(nD, nNe, target,  cmap="RdBu_r")
         fig.colorbar(cntr, ax=ax)
 
     else:
         # levels = np.linspace(0, 1e3, 100)
-
         # Current plot
         # ax.tricontour(nD, nNe, I_ohm, levels=14, linewidths=0.5, colors='k')
-        cntr2 = ax.tricontourf(nD, nNe, np.log10(I_ohm), levels=6, cmap=cc.cm.diverging_bwr_40_95_c42)
-    #    cntr2 = ax2.contourf(np.array(nD).reshape((20,20)), np.array(nNe).reshape((20,20)), np.log10(np.array(I_re).reshape((20,20))), levels=14, cmap="RdBu_r")
-    #    ax2.contour(np.array(nD).reshape((20,20)), np.array(nNe).reshape((20,20)), np.log10(np.array(I_re).reshape((20,20))), levels=14, linewidths=0.5, colors='k')
-        fig.colorbar(cntr2, ax=ax, ticks=np.linspace(0, 7, 8), label=r'Maximum RE current $\log_{10}(I_{\rm RE})$')
+        fig, (ax1, ax2) = plt.subplots(ncols=2, sharey=True, figsize=(10, 4))
+
+        levels = np.linspace(-2, 8, 10)
+
+        cntr1 = ax1.tricontourf(nD, nNe, np.log10(I_ohm), levels=levels, cmap=cc.cm.diverging_bwr_40_95_c42)
 
         # Current quench time plot
-        ax.tricontour(nD_, nNe_, tCQ_, levels=[50e-3, 150e-3], linewidths=2, linestyles=['dashed', 'dotted'])
+        ax1.tricontour(nD_, nNe_, tCQ_, levels=[50e-3, 150e-3], linewidths=2, linestyles=['dashed', 'dotted'])
+
+
+        cntr2 = ax2.tricontourf(nD, nNe, np.log10(I_re), levels=levels, cmap=cc.cm.diverging_bwr_40_95_c42)
+
+        ax2.tricontour(nD_, nNe_, tCQ_, levels=[50e-3, 150e-3], linewidths=2, linestyles=['dashed', 'dotted'])
+
+
+        fig.subplots_adjust(right=0.8)
+        cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+        cbar = fig.colorbar(cntr2, cax=cbar_ax, ticks=levels, label=r'Current (A)')
+        cbar.ax.set_yticklabels([r'$10^{' + f'{int(i):.0f}' + '}$' for i in levels])
 
 
     if SHOW_POINTS:
@@ -97,17 +123,22 @@ def main():
             else:
                 ax.plot(n1, n2, 'ko', ms=2, alpha=.5)
 
-    ax.scatter(1.2521550826399989e+22, 4.798231975918889e+16, c='g', marker='*', s=40, label='Optimum')
-    ax.scatter(1e22, 6.2e16, c='r', marker='*', s=40, label='Suboptimum')
+    # ax.scatter(1.2521550826399989e+22, 4.798231975918889e+16, c='g', marker='*', s=40, label='Optimum')
+    # ax.scatter(1e22, 6.2e16, c='r', marker='*', s=40, label='Suboptimum')
 
-    plt.title('Maximum RE current')
-    plt.legend(loc='lower left')
+    # plt.title('Maximum RE current')
+    # plt.legend(loc='lower left')
 
-    ax.set_xlabel(r'Injected deuterium $n_{\rm D}$ (m$^{-1}$)')
-    ax.set_ylabel(r'Injected neon $n_{\rm Ne}$ (m$^{-1}$)')
+    ax1.set_ylabel(r'$n_{\rm Ne}$ (m$^{-3}$)')
+    for ax in [ax1, ax2]:
+        ax.set_yscale('log')
+        ax.set_xscale('log')
+        ax.set_xlabel(r'$n_{\rm D}$ (m$^{-3}$)')
 
-    ax.set_yscale('log')
-    ax.set_xscale('log')
+    ax1.text(nD[100], nNe[-3], '(a)')
+    ax2.text(nD[100], nNe[-3], '(b)')
+    # plt.set_aspect('equal*')
+    plt.subplots_adjust(wspace=.1)
     plt.show()
                 # sys.exit()
 
