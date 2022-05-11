@@ -7,11 +7,8 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.colors as mcolors
-#from mpl_toolkits.axes_grid1 import AxesGrid
-#from mpl_toolkits.axes_grid1 import Grid
 import colorcet as cc
 
-#plt.rcParams["mpl_toolkits.legacy_colorbar"] = False
 plt.rcParams['text.usetex'] = True
 
 SMALL_SIZE = 17
@@ -32,10 +29,10 @@ from bayes_opt.util import load_logs
 from mpl_toolkits import mplot3d
 from bayes.opt1 import blackBoxFunction
 
-BAYESIAN_PATH = 'bayes/dataNew'#'bayes/dataNew/log_dBB40e-4.json'
-POWELL_PATH = 'powell/data'
+BAYESIAN_PATH = 'bayes/data/transportData'
+POWELL_PATH = 'powell/data/transportData'
 N_STEPS = 110
-FIG_NAME = 'transport_opt.eps'
+FIG_NAME = None #'transport_opt.eps'
 
 bounds = {'log_nD': (1e19, 2e22), 'log_nNe': (1e15, 1e19)}
 
@@ -68,25 +65,15 @@ def plot_gp(opt, inp, ax=None, show=False):
     if not ax:
         ax = plt.axes()
 
-    levels = np.linspace(0, 800, 50)
-    ticks = np.linspace(0, 800, 9, dtype=int)
-    cntr = ax.tricontourf(inp[:,0], inp[:,1], mu, cmap=cc.cm.diverging_bwr_40_95_c42, levels=levels, extend='max')
-    #cbar = fig.colorbar(cntr, ax=ax, label='objective function', ticks=ticks)
-    #cbar.ax.tick_params(labelsize=12)
-    #cbar.ax.label_params(labelsize=14)
-    
-    labels = ['$'+str(tick)+'$' for tick in ticks]#list(ticks)
-    labels[-1] = '$\geq 800$'
-    #cbar.ax.set_yticklabels(labels)
+    levels = np.linspace(1, 3, 50)
 
-    # surf = ax.plot_trisurf(inp[:,0], inp[:,1], mu, linewidth=0.1, alpha=.25)
-    # fig.colorbar(surf)
-    # ax.scatter(inp[:,0], inp[:,1], mu, 'g')
+    cntr = ax.tricontourf(inp[:,0], inp[:,1], np.log10(mu), cmap=cc.cm.diverging_bwr_40_95_c42, levels=levels, extend='max')
+
     ax.scatter(input[:,0], input[:,1], c='dimgray', s=10, clip_on=False)
-    #ax.scatter(input[:10,0], input[:10,1], c='k', s=20, alpha=.3, clip_on=False)
 
+    optInd = output.argmin()
+    ax.scatter(input[optInd,0], input[optInd,1], c='r', marker='*', s=70)
 
-    ax.scatter(10**opt.max['params']['log_nD'], 10**opt.max['params']['log_nNe'], c='r', marker='*', s=70)
 
     if show:
         plt.show()
@@ -152,29 +139,17 @@ def main():
         ax.set_ylim(10**ymin, 10**ymax)#(ymin, ymax)
         ax.set_xscale('log')
         ax.set_yscale('log')
-        #ax.set_rasterized(True)
-        #ax.set_xlabel(r'injected deuterium ($\rm{m}^{-3}$)')#, fontsize=14)
-        #ax.set_ylabel(r'injected neon ($\rm{m}^{-3}$)')#, fontsize=14)
-    
-    
-    #fig.tight_layout()
-    #cb_ax = fig.add_axes([0.93, 0.1, 0.02, 0.8])
-    
-    #cbar = grid[-1].cax.colorbar(cntr)
-    #cbar = grid.cbar_axes[0].colorbar(cntr)
-    ticks = np.linspace(0, 800, 9, dtype=int)
-    labels = ['$'+str(tick)+'$' for tick in ticks]
-    labels[-1] = '$\geq 800$'
+        ax.set_xticks([1e18, 1e20, 1e22])
+
+    ticks = np.linspace(1, 3, 3, dtype=int)
+    labels = [r'$10^{1}$', r'$10^{2}$', r'$\geq 10^{3}$']'
     cbar = fig.colorbar(cntr, ax=axes, shrink=0.95, label='objective function', ticks=ticks)
-    #cbar = fig.colorbar(cntr, cax=cb_ax, label='objective function', ticks=ticks)
     
-    #cbar.ax.set_yticks(ticks)
     cbar.ax.set_yticklabels(labels)
     
     fig.supxlabel(r'injected deuterium ($\rm{m}^{-3}$)')
     fig.supylabel(r'injected neon ($\rm{m}^{-3}$)')
-    #fig.tight_layout()
-    
+
     if FIG_NAME:
         plt.savefig(FIG_NAME)
     plt.show()
