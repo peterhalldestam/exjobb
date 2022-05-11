@@ -6,6 +6,21 @@ import matplotlib.pyplot as plt
 import colorcet as cc
 
 import opt.objective as obj
+SMALL_SIZE = 12
+MEDIUM_SIZE = 15
+BIGGER_SIZE = 20
+
+plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "sans-serif",
+    "font.serif": ["Computer Modern Roman"]})
 
 PLOT_OBJECTIVE = False   # if false, I_re is plotted
 SHOW_POINTS = False
@@ -83,8 +98,8 @@ def main():
     #print(np.array(I_re).reshape((20,20)))
 
 
-    if PLOT_OBJECTIVE:
 
+<<<<<<< HEAD
         fig, ax = plt.subplots()
 
         cntr = ax.tricontourf(nD, nNe, np.log10(target), levels=10, cmap=cc.cm.diverging_bwr_40_95_c42)
@@ -96,6 +111,12 @@ def main():
 
         ax.set_yscale('log')
         ax.set_xscale('log')
+=======
+    if PLOT_OBJECTIVE:
+        fig, ax = plt.subplots()
+        cntr = ax.tricontourf(nD, nNe, target,  cmap="RdBu_r")
+        fig.colorbar(cntr, ax=ax)
+>>>>>>> 63ecd962878ab65a55fa4a55b9638d889a3e0a92
 
     else:
 
@@ -110,9 +131,9 @@ def main():
         # fig.colorbar(ohmic, ax=ax1, levels=10, label=r'Maximum RE current $\log_{10}(I_{\rm RE})$')
 
         # levels = np.linspace(0, 1e3, 100)
-
         # Current plot
         # ax.tricontour(nD, nNe, I_ohm, levels=14, linewidths=0.5, colors='k')
+<<<<<<< HEAD
         ohmic = ax2.tricontourf(nD, nNe, np.log10(I_ohm), levels=levels, cmap=cc.cm.diverging_bwr_40_95_c42)
     #    cntr2 = ax2.contourf(np.array(nD).reshape((20,20)), np.array(nNe).reshape((20,20)), np.log10(np.array(I_re).reshape((20,20))), levels=14, cmap="RdBu_r")
     #    ax2.contour(np.array(nD).reshape((20,20)), np.array(nNe).reshape((20,20)), np.log10(np.array(I_re).reshape((20,20))), levels=14, linewidths=0.5, colors='k')
@@ -140,6 +161,27 @@ def main():
             ax.set_xscale('log')
             # ax.set_aspect('equal')
 
+=======
+        fig, (ax1, ax2) = plt.subplots(ncols=2, sharey=True, figsize=(10, 4))
+
+        levels = np.linspace(-2, 8, 10)
+
+        cntr1 = ax1.tricontourf(nD, nNe, np.log10(I_ohm), levels=levels, cmap=cc.cm.diverging_bwr_40_95_c42)
+
+        # Current quench time plot
+        ax1.tricontour(nD_, nNe_, tCQ_, levels=[50e-3, 150e-3], linewidths=2, linestyles=['dashed', 'dotted'])
+
+
+        cntr2 = ax2.tricontourf(nD, nNe, np.log10(I_re), levels=levels, cmap=cc.cm.diverging_bwr_40_95_c42)
+
+        ax2.tricontour(nD_, nNe_, tCQ_, levels=[50e-3, 150e-3], linewidths=2, linestyles=['dashed', 'dotted'])
+
+
+        fig.subplots_adjust(right=0.8)
+        cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+        cbar = fig.colorbar(cntr2, cax=cbar_ax, ticks=levels, label=r'Current (A)')
+        cbar.ax.set_yticklabels([r'$10^{' + f'{int(i):.0f}' + '}$' for i in levels])
+>>>>>>> 63ecd962878ab65a55fa4a55b9638d889a3e0a92
 
 
     if SHOW_POINTS:
@@ -151,10 +193,27 @@ def main():
 
     # ax.scatter(1.2521550826399989e+22, 4.798231975918889e+16, c='g', marker='*', s=40, label='Optimum')
     # ax.scatter(1e22, 6.2e16, c='r', marker='*', s=40, label='Suboptimum')
+<<<<<<< HEAD
 
 
     plt.tight_layout()
     fig.subplots_adjust(right=0.8)
+=======
+
+    # plt.title('Maximum RE current')
+    # plt.legend(loc='lower left')
+
+    ax1.set_ylabel(r'$n_{\rm Ne}$ (m$^{-3}$)')
+    for ax in [ax1, ax2]:
+        ax.set_yscale('log')
+        ax.set_xscale('log')
+        ax.set_xlabel(r'$n_{\rm D}$ (m$^{-3}$)')
+
+    ax1.text(nD[100], nNe[-3], '(a)')
+    ax2.text(nD[100], nNe[-3], '(b)')
+    # plt.set_aspect('equal*')
+    plt.subplots_adjust(wspace=.1)
+>>>>>>> 63ecd962878ab65a55fa4a55b9638d889a3e0a92
     plt.show()
                 # sys.exit()
 

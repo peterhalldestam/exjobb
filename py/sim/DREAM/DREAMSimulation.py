@@ -30,7 +30,7 @@ import DREAM.Settings.Solver as Solver
 import DREAM.Settings.TransportSettings as Transport
 
 CHECK_OUTPUT = True     # Check if n_re / n_cold > 1e-2 post simulation
-REMOVE_FILES = True     # Removes output files post simulation
+REMOVE_FILES = False     # Removes output files post simulation
 
 # Number of radial nodes
 NR = 20
@@ -151,9 +151,11 @@ class DREAMSimulation(sim.Simulation):
             self.I_ohm      = utils.join('eqsys.j_ohm.current()', dos)
             self.I_tot      = utils.join('eqsys.j_tot.current()', dos)
             self.T_cold     = utils.join('eqsys.T_cold.data', dos)
-            
+
+            if not REMOVE_FILES:
+                self.j_ohm = utils.join('eqsys.j_ohm.data', dos)
+
             assert len(self.r) == NR
-            assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
 
             for do in dos:
                 if close:
@@ -207,6 +209,10 @@ class DREAMSimulation(sim.Simulation):
             """ Plot temperature evolution at selected radial nodes. """
             return utils.visualizeTemperatureEvolution(self.t, self.T_cold, r=r, ax=ax, show=show)
 
+        def visualizeCurrentDensity(self, times=[0,-1], ax=None, show=False):
+            """ Plot Ohmic current density. """
+            assert not REMOVE_FILES
+            return utils.visualizeCurrentDensity(self.t, self.r, self.j_ohm, times=times, ax=ax, show=show)
 
     ############## DISRUPTION SIMULATION SETUP ##############
 
@@ -215,6 +221,8 @@ class DREAMSimulation(sim.Simulation):
         super().__init__(id=id, verbose=verbose, **inputs)
 
         assert not (svensson and not transport_re), 'Svensson transport requires RE transport to be active'
+
+        self.n_saves = 200
 
         # Transport options
         self.transport_cold = transport_cold
@@ -310,7 +318,7 @@ class DREAMSimulation(sim.Simulation):
         self.do = self._run(quiet=True)
 
         # From now on, we store but a small subset of all timesteps to reduce memory use
-        self.ds.timestep.setNumberOfSaveSteps(200)
+        self.ds.timestep.setNumberOfSaveSteps(self.n_saves)
 
         # Set self-consistent evolution of the electric field
         self.ds.eqsys.E_field.setType(EField.TYPE_SELFCONSISTENT)
