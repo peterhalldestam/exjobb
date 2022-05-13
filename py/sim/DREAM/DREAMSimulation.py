@@ -30,7 +30,7 @@ import DREAM.Settings.Solver as Solver
 import DREAM.Settings.TransportSettings as Transport
 
 CHECK_OUTPUT = True     # Check if n_re / n_cold > 1e-2 post simulation
-REMOVE_FILES = False #True     # Removes output files post simulation
+REMOVE_FILES = True     # Removes output files post simulation
 
 # Number of radial nodes
 NR = 20
@@ -151,7 +151,7 @@ class DREAMSimulation(sim.Simulation):
             self.I_ohm      = utils.join('eqsys.j_ohm.current()', dos)
             self.I_tot      = utils.join('eqsys.j_tot.current()', dos)
             self.T_cold     = utils.join('eqsys.T_cold.data', dos)
-            
+
             assert len(self.r) == NR
             assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
 
@@ -222,8 +222,10 @@ class DREAMSimulation(sim.Simulation):
         self.svensson       = svensson
 
         self.outputDir = OUTPUT_DIR # relative dir path
-        self.handleCrash = True
+        self._handleCrash = True
+        self._removeFilesIfCrash = True
 
+        self.dos = []
         self.ds = None      # This will be updated for each subsequent simulation.
         self.do = None      # We need access to do.grid.integrate()
 
@@ -234,7 +236,7 @@ class DREAMSimulation(sim.Simulation):
         self.ds.other.include(['fluid'])
 
         # Set solver settings
-        self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_MKL)
+        self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
         self.ds.solver.setType(Solver.NONLINEAR)
         self.ds.solver.setMaxIterations(maxiter=500)
 
@@ -271,7 +273,7 @@ class DREAMSimulation(sim.Simulation):
         """ Run the simulation. """
         assert self.output is None, 'Output object already exists!'
         if handleCrash is not None:
-            self.handleCrash = handleCrash
+            self._handleCrash = handleCrash
 
 
 
@@ -393,6 +395,7 @@ class DREAMSimulation(sim.Simulation):
         do = self._run(out=out)
         self.ds = DREAMSettings(self.ds)
         self.ds.fromOutput(out)
+        self.dos.append(do)
         return do
 
 
@@ -408,10 +411,14 @@ class DREAMSimulation(sim.Simulation):
             return do
 
         except DREAMException as err:
-            if self.handleCrash:
+            if self._handleCrash:
                 tmax = self.ds.timestep.tmax
                 nt = self.ds.timestep.nt
                 if nt >= NT_MAX:
+                    if self._removeFilesIfCrash:
+                        for do in self.dos:
+                            os.remove(do.filename)
+
                     raise MaximumIterationsException('ERROR: MAXIMUM NUMBER OF TIMESTEPS REACHED!') from err
                 else:
                     print(err)
