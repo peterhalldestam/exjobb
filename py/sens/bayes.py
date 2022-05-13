@@ -31,7 +31,7 @@ def objective_function(log_nD, log_nNe):
         # Run simulation
         sim.run(handleCrash=True)
 
-    except (MaximumIterationsException, TransportException):
+    except MaximumIterationsException:
         # Penalize bad simulation runs
         return LARGE_NUMBER
 
@@ -45,7 +45,7 @@ def main():
     log_nD_opt  = np.log10(1.17e22)
     log_nNe_opt = np.log10(7.00e16)
 
-    dnns = (.01, .1, .5)
+    dnns = (.01, .1, .2, .3, .5)
     for dnn in dnns:
 
         # set pessimization bounds
