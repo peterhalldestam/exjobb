@@ -45,6 +45,7 @@ def sigmoid(x, x0=0, k=1):
     """
     return 1/2 + 1/2*np.tanh(k*(x-x0))
 
+
 def baseObjective(I_re, I_ohm, tCQ):
     """
     Returns the base objective function for when optimizing disruption

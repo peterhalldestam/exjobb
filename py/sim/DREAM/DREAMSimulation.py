@@ -30,13 +30,13 @@ import DREAM.Settings.Solver as Solver
 import DREAM.Settings.TransportSettings as Transport
 
 CHECK_OUTPUT = True     # Check if n_re / n_cold > 1e-2 post simulation
-REMOVE_FILES = False     # Removes output files post simulation
+REMOVE_FILES = True     # Removes output files post simulation
 
 # Number of radial nodes
 NR = 20
 
 # Maximum no. iterations
-NT_MAX = 20_000
+NT_MAX = 30_000
 
 # Where to store DREAMOutput files during simulation
 OUTPUT_DIR = 'outputs/'
@@ -152,10 +152,8 @@ class DREAMSimulation(sim.Simulation):
             self.I_tot      = utils.join('eqsys.j_tot.current()', dos)
             self.T_cold     = utils.join('eqsys.T_cold.data', dos)
 
-            if not REMOVE_FILES:
-                self.j_ohm = utils.join('eqsys.j_ohm.data', dos)
-
             assert len(self.r) == NR
+            assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
 
             for do in dos:
                 if close:
@@ -209,10 +207,6 @@ class DREAMSimulation(sim.Simulation):
             """ Plot temperature evolution at selected radial nodes. """
             return utils.visualizeTemperatureEvolution(self.t, self.T_cold, r=r, ax=ax, show=show)
 
-        def visualizeCurrentDensity(self, times=[0,-1], ax=None, show=False):
-            """ Plot Ohmic current density. """
-            assert not REMOVE_FILES
-            return utils.visualizeCurrentDensity(self.t, self.r, self.j_ohm, times=times, ax=ax, show=show)
 
     ############## DISRUPTION SIMULATION SETUP ##############
 
@@ -222,16 +216,16 @@ class DREAMSimulation(sim.Simulation):
 
         assert not (svensson and not transport_re), 'Svensson transport requires RE transport to be active'
 
-        self.n_saves = 200
-
         # Transport options
         self.transport_cold = transport_cold
         self.transport_re   = transport_re
         self.svensson       = svensson
 
         self.outputDir = OUTPUT_DIR # relative dir path
-        self.handleCrash = True
+        self._handleCrash = True
+        self._removeFilesIfCrash = True
 
+        self.dos = []
         self.ds = None      # This will be updated for each subsequent simulation.
         self.do = None      # We need access to do.grid.integrate()
 
@@ -242,7 +236,7 @@ class DREAMSimulation(sim.Simulation):
         self.ds.other.include(['fluid'])
 
         # Set solver settings
-        self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_MKL)
+        self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
         self.ds.solver.setType(Solver.NONLINEAR)
         self.ds.solver.setMaxIterations(maxiter=500)
 
@@ -279,7 +273,7 @@ class DREAMSimulation(sim.Simulation):
         """ Run the simulation. """
         assert self.output is None, 'Output object already exists!'
         if handleCrash is not None:
-            self.handleCrash = handleCrash
+            self._handleCrash = handleCrash
 
 
 
@@ -318,7 +312,7 @@ class DREAMSimulation(sim.Simulation):
         self.do = self._run(quiet=True)
 
         # From now on, we store but a small subset of all timesteps to reduce memory use
-        self.ds.timestep.setNumberOfSaveSteps(self.n_saves)
+        self.ds.timestep.setNumberOfSaveSteps(200)
 
         # Set self-consistent evolution of the electric field
         self.ds.eqsys.E_field.setType(EField.TYPE_SELFCONSISTENT)
@@ -401,6 +395,7 @@ class DREAMSimulation(sim.Simulation):
         do = self._run(out=out)
         self.ds = DREAMSettings(self.ds)
         self.ds.fromOutput(out)
+        self.dos.append(do)
         return do
 
 
@@ -416,10 +411,14 @@ class DREAMSimulation(sim.Simulation):
             return do
 
         except DREAMException as err:
-            if self.handleCrash:
+            if self._handleCrash:
                 tmax = self.ds.timestep.tmax
                 nt = self.ds.timestep.nt
                 if nt >= NT_MAX:
+                    if self._removeFilesIfCrash:
+                        for do in self.dos:
+                            os.remove(do.filename)
+
                     raise MaximumIterationsException('ERROR: MAXIMUM NUMBER OF TIMESTEPS REACHED!') from err
                 else:
                     print(err)
