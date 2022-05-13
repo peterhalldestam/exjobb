@@ -30,13 +30,13 @@ import DREAM.Settings.Solver as Solver
 import DREAM.Settings.TransportSettings as Transport
 
 CHECK_OUTPUT = True     # Check if n_re / n_cold > 1e-2 post simulation
-REMOVE_FILES = True     # Removes output files post simulation
+REMOVE_FILES = False #True     # Removes output files post simulation
 
 # Number of radial nodes
 NR = 20
 
 # Maximum no. iterations
-NT_MAX = 20_000
+NT_MAX = 30_000
 
 # Where to store DREAMOutput files during simulation
 OUTPUT_DIR = 'outputs/'

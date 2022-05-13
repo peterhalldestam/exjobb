@@ -9,7 +9,7 @@ import colorcet as cc
 
 from opt1 import blackBoxFunction
 
-LOG_PATH = 'dataNew/log_dBB30e-4.json'
+LOG_PATH = 'data/expDecay4.json'
 
 bounds = {'log_nD': (1e19, 2e22), 'log_nNe': (1e15, 1e19)}
 
@@ -34,8 +34,8 @@ def plot_gp(opt, inp):
     input = np.array([[res['params']['log_nD'], res['params']['log_nNe']] for res in opt.res])
     output = -np.array([res["target"] for res in opt.res])
     
-    input = input[:110]
-    output = output[:110]
+    #input = input[:110]
+    #output = output[:110]
     #########
    # output[output==1e6] = 200.
     #########
@@ -57,7 +57,7 @@ def plot_gp(opt, inp):
     # ax = plt.axes(projection='3d')
 
 
-    cntr = ax.tricontourf(inp[:,0], inp[:,1], mu, levels=30, cmap="RdBu_r")
+    cntr = ax.tricontourf(inp[:,0], inp[:,1], np.log10(mu), levels=30, cmap="RdBu_r")
     fig.colorbar(cntr, ax=ax, label='Objective function')
 
     print(cntr.levels)
