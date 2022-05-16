@@ -99,11 +99,14 @@ def main():
 
     s = ExponentialDecaySimulation()
 
-    # s.configureInput()
+    s.configureInput(nD2=10**22.072273, nNe=10**16.844524)
+
+    # s.configureInput(nD2=10**22.070555, nNe=10**16.844719)
     s.run(handleCrash=False)
 
     print(f'tCQ = {s.output.currentQuenchTime*1e3} ms')
 
+    s.output.visualizeCurrentDensity(show=True)
     s.output.visualizeTemperatureEvolution(r=[0,-1], show=True)
     s.output.visualizeCurrents(show=True)
 
