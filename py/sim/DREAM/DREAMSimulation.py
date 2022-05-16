@@ -151,6 +151,7 @@ class DREAMSimulation(sim.Simulation):
             self.I_ohm      = utils.join('eqsys.j_ohm.current()', dos)
             self.I_tot      = utils.join('eqsys.j_tot.current()', dos)
             self.T_cold     = utils.join('eqsys.T_cold.data', dos)
+            self.j_ohm      = utils.join('eqsys.j_ohm.data', dos)
 
             assert len(self.r) == NR
             assert all(I.shape == self.t.shape for I in [self.I_re, self.I_ohm, self.I_tot])
@@ -161,9 +162,6 @@ class DREAMSimulation(sim.Simulation):
                         os.remove(do.filename)
                     do.close()
 
-                # paths = [OUTPUT_DIR + path for path in os.listdir(OUTPUT_DIR)]
-                # for fp in paths:
-                #     os.remove(fp)
 
         @property
         def finalOhmicCurrent(self):
@@ -207,6 +205,9 @@ class DREAMSimulation(sim.Simulation):
             """ Plot temperature evolution at selected radial nodes. """
             return utils.visualizeTemperatureEvolution(self.t, self.T_cold, r=r, ax=ax, show=show)
 
+        def visualizeCurrentDensity(self, ax=None, show=False):
+            """ Plot Ohmic current density over time. """
+            return utils.visualizeCurrentDensity(self.t, self.r, self.j_ohm,  ax=ax, show=show)
 
     ############## DISRUPTION SIMULATION SETUP ##############
 
