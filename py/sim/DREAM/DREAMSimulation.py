@@ -236,7 +236,7 @@ class DREAMSimulation(sim.Simulation):
         self.ds.other.include(['fluid'])
 
         # Set solver settings
-        self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_LU)
+        self.ds.solver.setLinearSolver(Solver.LINEAR_SOLVER_MKL)
         self.ds.solver.setType(Solver.NONLINEAR)
         self.ds.solver.setMaxIterations(maxiter=500)
 
