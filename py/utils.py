@@ -92,26 +92,25 @@ def getDensityProfile(do, n, c):
     profile = .5 * (1 + np.tanh(c * ((do.grid.r/do.grid.a) - .5)))
     return do.grid.r, n * profile * do.grid.integrate(1) / do.grid.integrate(profile)
 
-def visualizeCurrentDensity(t, r, j_ohm, times=[-1], ax=None, show=False):
+def visualizeCurrentDensity(t, r, j_ohm, ax=None, show=False):
     """
     Plots the current density profile over time.
 
     :param t:       Simulation time in (ms).
     :param r:       Minor radius in (m).
     :param j_ohm:   Ohmic current in (MA/m^-3) of format (t, r).
-    :param times:   Timesteps to plot the current density profile at.
     :param ax:      matplotlib Axes object.
     :param show:    Show the figure of the currents.
     """
     if ax is None:
         ax = plt.axes()
+    #
+    # for ti in times:
+    #     ax.plot(r, j_ohm[ti,:] * 1e-6, label=f't = {t[ti] * 1e3:.1f}')
+    cntr = ax.contourf(r, t * 1e3, j_ohm * 1e-3, cmap=cc.cm.diverging_bwr_40_95_c42)
 
-    for ti in times:
-        ax.plot(r, j_ohm[ti,:] * 1e-6, label=f't = {t[ti] * 1e3:.1f}')
-
-    ax.legend(title='time (ms)')
-    ax.set_xlabel('minor radius (m)')
-    ax.set_ylabel(r'Ohmic current density (kA/m$^{-3}$)')
+    ax.set_xlabel(r'${\rm minor\;radius}\;({\rm m})$')
+    ax.set_ylabel(r'${\rm time}\;({\rm ms})$')
 
     if show:
         plt.show()
