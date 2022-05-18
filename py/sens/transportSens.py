@@ -6,6 +6,8 @@ from bayes_opt import BayesianOptimization
 from bayes_opt.logger import JSONLogger
 from bayes_opt.event import Events
 
+from sklearn.gaussian_process.kernels import Matern
+
 from sim.DREAM.transport import TransportSimulation, TransportException
 from sim.DREAM.DREAMSimulation import MaximumIterationsException
 
@@ -17,8 +19,9 @@ LOG_NAME = 'data/transport'
 LARGE_NUMBER = 500
 
 DBBS = [.002, .003, .004, .005]
-OPTIMA = np.log10([(5.52e20, 4.3e19), (2.28e21, 2.04e19), (1.92e21, 2.78e19), (3.30e21, 1.32e19)])
-DNNS = [.005, .05, .2]
+# OPTIMA = np.log10([(5.52e20, 4.3e19), (2.28e21, 2.04e19), (1.92e21, 2.78e19), (3.30e21, 1.32e19)])
+OPTIMA = [(20.741554, 19.633368), (21.357925, 19.309378), (21.326992, 19.423243), (21.51791, 19.1196)]
+DNNS = [.1]#[.005, .05, .2]
 
 
 def objective_function(log_nD, log_nNe):
@@ -27,7 +30,7 @@ def objective_function(log_nD, log_nNe):
     nNe = np.power(10, log_nNe)
 
     # Create simulation object
-    sim = TransportSimulation(verbose=True)
+    sim = TransportSimulation(verbose=False)
     sim.configureInput(nD2=nD, nNe=nNe)
 
     try:
@@ -64,11 +67,15 @@ def main():
                 verbose=2,
                 random_state=420
             )
+            optimizer.set_gp_params(kernel=Matern(length_scale=[1, 1.], nu=2.5))
             logger = JSONLogger(path=f'{LOG_NAME}_{dBB}_{dnn}')
             optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
 
+            # evaluate the minimum
+            optimizer.probe(params={'log_nD': log_nD_opt, 'log_nNe': log_nNe_opt}, lazy=False)
+
             # run pessimization
-            optimizer.maximize(init_points=80, n_iter=20, acq='ei') # previously n_iter=300
+            optimizer.maximize(init_points=80, n_iter=19, acq='ei')
             print(optimizer.max)
 
 
