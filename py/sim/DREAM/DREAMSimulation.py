@@ -171,8 +171,8 @@ class DREAMSimulation(sim.Simulation):
         @property
         def currentQuenchTime(self):
             """ Calculate CQ time, unable  it will return infinity. """
-            t80 = self.getTime(self.I_ohm, .8)
-            t20 = self.getTime(self.I_ohm, .2)
+            t80, _ = self.getTime(self.I_ohm, .8)
+            t20, _ = self.getTime(self.I_ohm, .2)
             if t80 is not None and t20 is not None:
                 return (t20 - t80) / .6
             else:
@@ -183,14 +183,15 @@ class DREAMSimulation(sim.Simulation):
             """ Maximum runaway electron current. """
             return self.I_re.max()
 
-        def getTime(self, arr: list, x):
+        def getTime(self, arr, x):
             """  Get first time t when arr(t) / max(arr) = x is satisfied """
             assert len(arr) == len(self.t)
             assert 0 < x < 1
             maxVal = max(arr)
             for t, val in zip(self.t, arr):
                 if val <= x * maxVal:
-                    return t
+                    return t, val
+            return None, None
 
 
         def visualizeCurrents(self, log=False, ax=None, show=False):
@@ -208,6 +209,36 @@ class DREAMSimulation(sim.Simulation):
         def visualizeCurrentDensity(self, ax=None, show=False):
             """ Plot Ohmic current density over time. """
             return utils.visualizeCurrentDensity(self.t, self.r, self.j_ohm,  ax=ax, show=show)
+
+        # def visualizeOutputVariables(self, ax=None, show=False):
+        #     """ Plot currents and indicate CQ time, max RE and final Ohmic current. """
+        #     return
+        #
+        #
+        #     ax = self.visualizeCurrents(log=False, ax=ax, show=False)
+        #
+        #
+        #     # add CQ time
+        #     t80, ohm80 = self.getTime(self.I_ohm, .8)
+        #     t20, ohm20 = self.getTime(self.I_ohm, .2)
+        #     t20 *= 1e3
+        #     t80 *= 1e3
+        #     ohm20 *= 1e-6
+        #     ohm80 *= 1e-6
+        #     assert t80 is not None and t20 is not None, 'no full CQ!'
+        #     ax.plot([t80, t80, t20], [ohm80, ohm20, ohm20], 'k')
+        #
+        #     # add maximal RE current
+        #     t_re = self.t[np.argmax(self.I_re)] * 1e3
+        #     max_I_re = self.maxRECurrent * 1e-6
+        #     ax.plot([self.t[0], t_re, t_re], [max_I_re, max_I_re, 0], 'k')
+        #
+        #     # add final Ohmic current
+        #     final_I_ohm = self.finalOhmicCurrent * 1e-6
+        #     ax.plot([self.t[0] * 1e3, self.t[-1] * 1e3], [final_I_ohm, final_I_ohm], 'k')function
+        #
+        #     plt.show()
+
 
     ############## DISRUPTION SIMULATION SETUP ##############
 
