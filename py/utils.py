@@ -9,17 +9,38 @@ import matplotlib.pyplot as plt
 import colorcet as cc
 import warnings
 
-DREAMPATHS = ('/home/pethalld/DREAM/py', '/home/peterhalldestam/DREAM/py', '/home/hannber/DREAM/py')
-
-try:
-    import DREAM
-except ModuleNotFoundError:
-    import sys
-    for dp in DREAMPATHS:
-        sys.path.append(dp)
-    import DREAM
-
 from DREAM import DREAMOutput
+
+# figure dimensios
+FIGSIZE_1X1 = (6, 6)
+FIGSIZE_1X2 = (7, 9)
+FIGSIZE_2X1 = (9, 4.5)
+
+COLOURBAR_WIDTH = 0.02
+
+# font sizes
+SMALL_SIZE = 19
+MEDIUM_SIZE = 21
+BIGGER_SIZE = 21
+
+def setFigureFonts():
+    """
+    Sets standard fontsize and LaTeX interpreter.
+    """
+    plt.rcParams.update({
+        "text.usetex": True,
+        "font.family": "sans-serif",
+        "font.serif": ["Computer Modern Roman"]
+    })
+
+    plt.rc('font', size=SMALL_SIZE)
+    plt.rc('axes', titlesize=SMALL_SIZE)
+    plt.rc('axes', labelsize=MEDIUM_SIZE)
+    plt.rc('xtick', labelsize=SMALL_SIZE)
+    plt.rc('ytick', labelsize=SMALL_SIZE)
+    plt.rc('legend', fontsize=SMALL_SIZE)
+    plt.rc('figure', titlesize=BIGGER_SIZE)
+
 
 def checkElectronDensityRatio(do, exc=None, tol=1e-2):
     """
@@ -170,17 +191,17 @@ def visualizeTemperatureEvolution(t, T, r=[0], ax=None, show=False):
 
     return ax
 
-def visualizeCurrents(t, I_ohm, I_re, I_tot, log=False, ax=None, show=False):
+def visualizeCurrents(t, I_ohm, I_re, I_tot, log=False, ax=None, show=False, define=False):
     """
     Plots the RE, Ohmic and total currents.
 
-    :param t:       Simulation time.
-    :param I_re:    RE current.
-    :param I_ohm:   Ohmic current.
-    :param I_tot:   Total current.
+    :param t:       Simulation time in ms.
+    :param I_re:    RE current in MA.
+    :param I_ohm:   Ohmic current in MA.
+    :param I_tot:   Total current in MA.
     :param ax:      matplotlib Axes object.
     :param show:    Show the figure of the currents.
-    """
+        """
     if ax is None:
         ax = plt.axes()
 
@@ -188,14 +209,13 @@ def visualizeCurrents(t, I_ohm, I_re, I_tot, log=False, ax=None, show=False):
     ax.plot(t * 1e3, I_re * 1e-6,  'b', label='REs')
     ax.plot(t * 1e3, I_tot * 1e-6, 'k', label='total')
 
-    ax.legend(title='Currents:')
-    ax.set_xlabel('time (ms)')
-    ax.set_ylabel('current (MA)')
-
     if log:
         ax.set_yscale('log')
 
     if show:
+        ax.legend(title='Currents:')
+        ax.set_xlabel('time (ms)')
+        ax.set_ylabel('current (MA)')
         plt.show()
 
     return ax
