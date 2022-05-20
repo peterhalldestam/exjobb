@@ -67,7 +67,7 @@ def main():
         optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
 
         # run pessimization
-        optimizer.maximize(init_points=0, n_iter=1, acq='ei') # previously n_iter=300
+        optimizer.maximize(init_points=10, n_iter=100, acq='ei') # previously n_iter=300
 
 
     print(optimizer.max)
