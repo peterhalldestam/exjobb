@@ -89,7 +89,7 @@ def getDensityProfile(do, n, c):
     Returns a density profile with the total (volume integrated) number of
     particles the same as if the density was radially constant n.
     """
-    profile = .5 * (1 + np.tanh(c * ((do.grid.r/do.grid.a) - .5)))
+    profile = (1 + np.tanh(c * ((do.grid.r/do.grid.a) - .5)))
     return do.grid.r, n * profile * do.grid.integrate(1) / do.grid.integrate(profile)
 
 def visualizeCurrentDensity(t, r, j_ohm, ax=None, show=False):
