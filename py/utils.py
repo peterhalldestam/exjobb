@@ -15,6 +15,7 @@ from DREAM import DREAMOutput
 FIGSIZE_1X1 = (6, 6)
 FIGSIZE_1X2 = (7, 9)
 FIGSIZE_2X1 = (9, 4.5)
+FIGSIZE_2X2 = (9, 9)
 
 COLOURBAR_WIDTH = 0.02
 
@@ -41,6 +42,12 @@ def setFigureFonts():
     plt.rc('legend', fontsize=SMALL_SIZE)
     plt.rc('figure', titlesize=BIGGER_SIZE)
 
+
+def get_optimum(x, y, z):
+    """
+    Returns both the minimizer (x, y) of z(x, y) and the corresponding z.
+    """
+    return x[z.argmin()], y[z.argmin()], z.min()
 
 def checkElectronDensityRatio(do, exc=None, tol=1e-2):
     """

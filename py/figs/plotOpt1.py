@@ -3,13 +3,9 @@ import os, sys
 import json
 import numpy as np
 import matplotlib.pyplot as plt
-from bayes_opt import BayesianOptimization
-from bayes_opt.util import load_logs
-from mpl_toolkits import mplot3d
 import colorcet as cc
 
 import sklearn.gaussian_process as gp
-from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 
 import utils
 import opt.objective as objective
@@ -39,7 +35,6 @@ def plot_scan(ax, lvls, bounds=None):
 
     ax.set_yscale('log')
     ax.set_xscale('log')
-
     ax.set_xticks([1e18, 1e20, 1e22])
     ax.set_yticks([1e16, 1e18, 1e20])
     ax.set_xticklabels([r'$10^{18}$', r'$10^{20}$', r'$10^{22}$'])
