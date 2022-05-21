@@ -30,7 +30,7 @@ import DREAM.Settings.Solver as Solver
 import DREAM.Settings.TransportSettings as Transport
 
 CHECK_OUTPUT = True     # Check if n_re / n_cold > 1e-2 post simulation
-REMOVE_FILES = True     # Removes output files post simulation
+REMOVE_FILES = False     # Removes output files post simulation
 
 # Number of radial nodes
 NR = 20
