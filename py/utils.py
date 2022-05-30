@@ -12,7 +12,7 @@ import warnings
 from DREAM import DREAMOutput
 
 # figure dimensios
-FIGSIZE_1X1 = (6, 6)
+FIGSIZE_1X1 = (7, 6)
 FIGSIZE_1X2 = (7, 9)
 FIGSIZE_2X1 = (9, 4.5)
 FIGSIZE_2X2 = (9, 9)
