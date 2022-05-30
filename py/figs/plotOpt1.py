@@ -18,9 +18,6 @@ bounds = {'log_nD': (18, 22.2), 'log_nNe': (15, 20)}
 
 NX, NY = 40, 40
 
-def get_optimum(x, y, z):
-    return x[z.argmin()], y[z.argmin()], z.min()
-
 
 def plot_scan(ax, lvls, bounds=None):
 
@@ -82,8 +79,10 @@ def plot_bayes(ax, lvls):
 
     ax.scatter(nD, nNe, c='k', s=1)
 
-    nD_, nNe_, obj_ = get_optimum(10**input[:,0], 10**input[:,1], output)
+    nD_, nNe_, obj_ = utils.get_optimum(10**input[:,0], 10**input[:,1], output)
     ax.scatter(nD_, nNe_, c='r', marker='*', s=60)
+    print(utils.get_optimum(input[:,0], input[:,1], output))
+
 
     ax.set_yscale('log')
     ax.set_xscale('log')
@@ -114,9 +113,9 @@ def plot_powell(ax):
     ax.scatter(nD[0], nNe[0], marker='p', c='c', s=100, zorder=1)
     ax.scatter(nD, nNe, c='k', s=1, zorder=1)
 
-    nD_, nNe_, obj_ = get_optimum(nD, nNe, output)
+    nD_, nNe_, obj_ = utils.get_optimum(nD, nNe, output)
     ax.scatter(nD_, nNe_, c='r', marker='*', s=100)
-    print(get_optimum(nD, nNe, output))
+    print(utils.get_optimum(nD, nNe, output))
 
 def main():
 

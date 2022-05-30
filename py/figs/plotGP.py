@@ -2,126 +2,181 @@
 import os, sys
 import json
 import numpy as np
-import colorcet as cc
 import matplotlib.pyplot as plt
+import colorcet as cc
 from mpl_toolkits import mplot3d
-from bayes_opt.util import load_logs
-from bayes_opt import BayesianOptimization
+
 import sklearn.gaussian_process as gp
 
+import utils
+import opt.objective as objective
+
+LOG_PATH = '../opt/bayes/data/expDecay4.json'
 
 
-plt.rcParams['text.usetex'] = True
+NX, NY = 100, 100
 
-SMALL_SIZE = 15
-MEDIUM_SIZE = 16
-BIGGER_SIZE = 18
+def plot_bayes(log, ax, lvls):
 
-plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
-plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
-plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
-plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-
-BAYES_LOG_PATH  = 'data/expDecayTest_0.01.json'
-
-# bounds = {'log_nD': (18, 22.2), 'log_nNe': (15, 20)}
-
-NX, NY = 300, 300
-
-def get_optimum(x, y, z):
-    return x[z.argmin()], y[z.argmin()], z.min()
-
-
-def plot_bayes(ax, select=False):
-
-    with open(BAYES_LOG_PATH) as file:
-        log = list(map(json.loads, file))
-
-    input   = np.array([[sample['params']['log_nD'], sample['params']['log_nNe']] for sample in log], dtype=np.float32)
-    output  = np.array([sample['target'] for sample in log], dtype=np.float32)
-
-    if select:
-        select = output<1
-        output = output[select]
-        input = input[select]
-
-
+    # create GP regressor
     reg = gp.GaussianProcessRegressor(
-        kernel=gp.kernels.Matern(nu=2.5),
+        kernel=gp.kernels.Matern(length_scale=[1., 1.], nu=2.5),
         alpha=1e-6,
-        normalize_y=False,
+        normalize_y=True,
         n_restarts_optimizer=20,
         random_state=420,
     )
+
+    # train the GP on sampled data
+    input   = np.array([[sample['params']['log_nD'], sample['params']['log_nNe']] for sample in log])
+    output  = np.log10([sample['target'] for sample in log])
+
+    N = 93
+    input = input[:N,:]
+    output = output[:N]
+
+    input = input[output<2]
+    output = output[output<2]
+
+    # sys.exit(print(output))
+    # print(output.max())
+
     reg.fit(input, output)
 
+    # get posterior mean function on a grid of points
     xmin, xmax = input[:,0].min(), input[:,0].max()
     ymin, ymax = input[:,1].min(), input[:,1].max()
-    x = np.linspace(xmin, xmax, NX)
-    y = np.linspace(ymin, ymax, NY)
+    x = np.logspace(xmin, xmax, NX)
+    y = np.logspace(ymin, ymax, NY)
+    xy = np.log10([[xx, yy] for xx in x for yy in y])
+    mu = 10 ** reg.predict(xy)
+    nD  = 10 ** (xy[:,0] - 21)
+    nNe = 10 ** (xy[:,1] - 19)
+    # _, _, obj = utils.get_optimum(input[:,0], input[:,1], -output)
+    mu = (mu - mu.min()) / (mu.max() - mu.min())
+    cntr = ax.tricontourf(nD, nNe, mu, levels=lvls, cmap=cc.cm.diverging_bwr_40_95_c42)
+    ax.set_xlim(nD.min(), nD.max())
+    ax.set_ylim(nNe.min(), nNe.max())
 
-    xy = np.array([[xx, yy] for xx in x for yy in y])
-    mu = reg.predict(xy)
+    output = 10 ** output
 
-    nD  = xy[:,0]
-    nNe = xy[:,1]
+    # show each sampled point
+    nD  = 10 ** (input[:,0] - 21)
+    nNe = 10 ** (input[:,1] - 19)
+    ax.scatter(nD, nNe, c='k', s=10)
 
-    # sys.exit(print(mu))
+    # indicate minimum
+    ax.scatter(nD[0], nNe[0], c='r', marker='*', s=100)
 
-    # ax.scatter(nD, nNe, mu, c='k', alpha=.1)
-    cntr = ax.tricontourf(nD, nNe, mu, levels=40, cmap=cc.cm.diverging_bwr_40_95_c42)
-    ax.scatter(input[:,0], input[:,1], output, c='r', s=10)
+    # indicate maximum
+    nD, nNe, obj = utils.get_optimum(nD, nNe, -output)
+    ax.scatter(nD, nNe, c='b', marker='*', s=100)
+    print(-obj)
 
-
-    print(get_optimum(input[:,0], input[:,1], output))
-    print(get_optimum(input[:,0], input[:,1], -output))
-
-
-    # ax.scatter(nD, nNe, c='k', s=1)
-
-
-    # ax.scatter(nD_, nNe_, c='r', marker='*', s=60)
-
-    # ax.set_yscale('log')
-    # ax.set_xscale('log')
-    #
-    # ax.set_xticks([1e18, 1e20, 1e22])
-    # ax.set_yticks([1e16, 1e18, 1e20])
-    # ax.set_xticklabels([r'$10^{18}$', r'$10^{20}$', r'$10^{22}$'])
-    # ax.set_yticklabels([r'$10^{16}$', r'$10^{18}$', r'$10^{20}$'])
-
-
+    ax.set_xlabel(r'$n_{\rm D}\;(10^{21}\,{\rm m}^{-3})$')
+    ax.set_ylabel(r'$n_{\rm Ne}\;(10^{19}\,{\rm m}^{-3})$')
 
     return cntr
+
+# def plot_bayes(ax, lvls):
+#
+#     with open(BAYES_LOG_PATH) as file:
+#         log = list(map(json.loads, file))
+#
+#     input   = np.array([[sample['params']['log_nD'], sample['params']['log_nNe']] for sample in log], dtype=np.float32)
+#     output  = -1 * np.array([sample['target'] for sample in log], dtype=np.float32)
+#
+#     input = input[:200,:]
+#     output = output[:200]
+#
+#     reg = gp.GaussianProcessRegressor(
+#         kernel=gp.kernels.Matern(length_scale=[1., 1.], nu=2.5),
+#         # alpha=1e-6,
+#         normalize_y=True,
+#         n_restarts_optimizer=5,
+#         random_state=420,
+#     )
+#     reg.fit(input, output)
+#
+#     xmin, xmax = input[:,0].min(), input[:,0].max()
+#     ymin, ymax = input[:,1].min(), input[:,1].max()
+#     x = np.logspace(xmin, xmax, NX)
+#     y = np.logspace(ymin, ymax, NY)
+#
+#     xy = np.log10([[xx, yy] for xx in x for yy in y])
+#     mu = reg.predict(xy)
+#
+#     nD  = 10 ** xy[:,0]
+#     nNe = 10 ** xy[:,1]
+#
+#     cntr = ax.tricontourf(nD, nNe, np.log10(mu), levels=lvls, cmap=cc.cm.diverging_bwr_40_95_c42)
+#
+#     # add each sampled point
+#     nD  = 10 ** input[:,0]
+#     nNe = 10 ** input[:,1]
+#
+#     ax.scatter(nD, nNe, c='k', s=1)
+#
+#     nD_, nNe_, obj_ = get_optimum(10**input[:,0], 10**input[:,1], output)
+#     ax.scatter(nD_, nNe_, c='r', marker='*', s=60)
+#
+#     ax.set_yscale('log')
+#     ax.set_xscale('log')
+#
+#     ax.set_xticks([1e18, 1e20, 1e22])
+#     ax.set_yticks([1e16, 1e18, 1e20])
+#     ax.set_xticklabels([r'$10^{18}$', r'$10^{20}$', r'$10^{22}$'])
+#     ax.set_yticklabels([r'$10^{16}$', r'$10^{18}$', r'$10^{20}$'])
+#
+#
+#
+#     return cntr
+
 
 
 def main():
 
-    # fig, ax = plt.subplots()
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    # create figure with 4 subplots
+    utils.setFigureFonts()
+    fig, axs = plt.subplots(ncols=2, nrows=2, figsize=utils.FIGSIZE_2X2)
+    axs = [ax for row in axs for ax in row]
+
+    levels = 100#np.logspace(.7, 1.9, 100)
+
+    with open(LOG_PATH) as file:
+        log = list(map(json.loads, file))
+
+
+    for n in (10, 50, 100, 150):
+        cntr = plot_bayes(log, ax, levels)
 
 
 
-    # levels = np.linspace(-1.5, 2.3, 100)
-
-    cntr2 = plot_bayes(ax)
 
 
 
     # colourbar settings
-    ticks = np.linspace(-1, 4, 6)
-    cbar_ax = fig.add_axes([0.85, 0.2, 0.05, 0.7])
-    cbar = fig.colorbar(cntr2, cax=cbar_ax, ticks=ticks)
-    cbar.ax.set_title(r'$\mathcal{L}$')
-    # cbar.ax.set_yticklabels([r'$10^{-1}$', r'$10^0$', r'$10^1$', r'$10^2$'])
+    # ticks = np.linspace(-1, 2, 4)
+    cbar_ax = fig.add_axes([.9, 0.2, utils.COLOURBAR_WIDTH, 0.7])
+    cbar = fig.colorbar(cntr, cax=cbar_ax)
+    cbar.ax.set_title(r'$\widetilde{\mathcal{L}}_2$')
+    cbar.ax.set_yticks([0, .25, .5, .75, 1.])
+    #
+    # # add text
+    # x, y = 1.5e18, 3e19
+    # ax1.text(x, y, r"${\rm (a)\,scan}+{\rm Powell's}$")
+    # ax2.text(x, y, r"${\rm (b)\,BayesOpt}$")
+    #
+    #
+    # ax1.set_ylabel(r'$n_{\rm Ne}\,({\rm m}^{-3})$')
+    # ax1.set_xlabel(r'$n_{\rm D}\,({\rm m}^{-3})$')
+    # ax2.set_xlabel(r'$n_{\rm D}\,({\rm m}^{-3})$')
+
+
+
 
     plt.tight_layout()
-    fig.subplots_adjust(right=0.8)
-
+    fig.subplots_adjust(right=.85)
     plt.show()
 
 
