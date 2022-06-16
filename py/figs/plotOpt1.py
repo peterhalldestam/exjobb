@@ -141,10 +141,11 @@ def main():
     cbar.ax.set_yticklabels([r'$10^{-1}$', r'$10^0$', r'$10^1$', r'$10^2$'])
 
     # add text
-    x, y = 1.5e18, 3e19
-    ax1.text(x, y, r"${\rm (a)\,scan}+{\rm Powell's}$")
-    ax2.text(x, y, r"${\rm (b)\,BayesOpt}$")
-
+    # x, y = 1.5e18, 3e19
+    # ax1.text(x, y, r"${\rm (a)\,scan}+{\rm Powell's}$")
+    # ax2.text(x, y, r"${\rm (b)\,BayesOpt}$")
+    ax1.set_title(r"${\rm scan}+{\rm Powell's\:method}$")
+    ax2.set_title(r"${\rm Bayesian\:optimization}$")
 
     ax1.set_ylabel(r'$n_{\rm Ne}\,({\rm m}^{-3})$')
     ax1.set_xlabel(r'$n_{\rm D}\,({\rm m}^{-3})$')

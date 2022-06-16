@@ -23,38 +23,41 @@ def main():
 
 
 
-    x0, x1 = .01, 5
+    x0, x1 = .01, 8
     x = np.linspace(x0, x1, 1000)
+    ax.plot(x, (1/x**2) * chskr(x1) * x1**2, 'grey')
+    ax.plot(x, x * chskr(x0) / x0, 'grey')
     ax.plot(x, chskr(x), 'k')
     ax.plot([0, x0], [0, chskr(x0)], 'k')
 
     # show critical velocity + eE_parallel
-    xc = 3
-    ax.plot([0, xc], [chskr(xc), chskr(xc)], '--', c='k')
-    ax.plot([xc, xc], [0, chskr(xc)], '--', c='k')
+    xc1 = 3
+    ax.plot([0, xc1], [chskr(xc1), chskr(xc1)], '--', c='k')
+    ax.plot([xc1, xc1], [0, chskr(xc1)], '--', c='k')
+
+    # show critical field E_c
+    xc2 = 8
+    ax.plot([0, xc2], [chskr(xc2)/2, chskr(xc2)/2], '--', c='k')
+    # ax.plot([xc2, xc2], [0, chskr(xc2)+.006], c='k')
 
     # fill in runaway region
-    x_re = x[x>xc]
+    x_re = x[(xc1<x)*(x<xc2)]
     ax.fill_between(x_re, chskr(x_re), np.zeros(x_re.shape), color='bisque')
-    ax.text(xc+.25, .011, r'${\rm runaway\;region}$')
+    # ax.text(xc1+.25, .011, r'${\rm runaway\;region}$')
 
     # show thermal velocity + 0.21eE_D
     ax.plot([0, 1], [chskr(1), chskr(1)], '--', c='k')
     ax.plot([1, 1], [0, chskr(1)], '--', c='k')
 
-    ax.plot(x, (1/x**2) * chskr(x1) * x1**2, 'k--')
-
-    x = np.linspace(0, x1)
-    ax.plot(x, x * chskr(x0) / x0, 'k--')
 
 
-    ax.set_xlim(0, x1)
+    ax.set_xlim(0, xc2+.1)
     ax.set_ylim(0, .25)
 
-    ax.set_xticks([1, xc])
-    ax.set_xticklabels([r'$v_{th}$', r'$v_c$'])
-    ax.set_yticks([chskr(xc), chskr(1)])
-    ax.set_yticklabels([r'$eE_\parallel$', r'$0.21eE_{\rm D}$'])
+    ax.set_xticks([1, xc1])
+    ax.set_xticklabels([r'$v_{\rm th}$', r'$v_{\rm c}$'])
+    ax.set_yticks([chskr(xc1), chskr(xc2)/2, chskr(1)])
+    ax.set_yticklabels([r'$eE_\parallel$', r'$eE_{\rm c}$', r'$0.21eE_{\rm D}$'])
 
     # plt.xlabel(r'$v$')
     # plt.ylabel(r'$F_{drag}$')
@@ -63,8 +66,10 @@ def main():
     ax.yaxis.set_label_coords(-.08, .5)
 
 
-    ax.text(.75, .24, r'$\sim v$')
-    ax.text(1.9, .15, r'$\sim 1/v^2$')
+    ax.text(.75, .24, r'$\propto v$')
+    ax.text(1.9, .15, r'$\propto \displaystyle\frac{ 1}{ v^2}$')
+
+    ax.text(4.2, .04, r'$\rm runaway\,region$')
 
     # Hide the right and top spines
     ax.spines['right'].set_visible(False)

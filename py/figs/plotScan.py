@@ -55,8 +55,7 @@ def main():
     utils.setFigureFonts()
     fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=utils.FIGSIZE_2X1, sharey=True)
 
-    runaway = plot_scan(ax1, LEVELS)
-
+    runaway = plotScan(nD, nNe, I_re, tCQ, ax=ax1)
     ohmic = plotScan(nD, nNe, I_ohm, tCQ, ax=ax2)
 
 
@@ -79,8 +78,8 @@ def main():
 
     x, y = 1.5e18, 3e19
 
-    ax1.text(x, y, r'${\rm (a)\;maximal\;RE\;current}$')
-    ax2.text(x, y, r'${\rm (b)\;final\;Ohmic\;current}$')
+    ax1.text(x, y, r'${\rm maximum\;RE\;current}$')
+    ax2.text(x, y, r'${\rm final\;Ohmic\;current}$')
 
 
     plt.tight_layout()
