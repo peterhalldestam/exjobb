@@ -20,7 +20,8 @@ LARGE_NUMBER = 500
 
 DBBS = [.002, .003, .004, .005]
 # OPTIMA = np.log10([(5.52e20, 4.3e19), (2.28e21, 2.04e19), (1.92e21, 2.78e19), (3.30e21, 1.32e19)])
-OPTIMA = [(20.741554, 19.633368), (21.357925, 19.309378), (21.326992, 19.423243), (21.51791, 19.1196)]
+OPTIMA = [(20.741554, 19.633368), (21.357925, 19.309378), (21.2833012, 19.444044), (21.51791, 19.1196)]
+OPTIMA = [OPTIMA[2]]
 DNNS = [.1]#[.005, .05, .2]
 
 
@@ -51,6 +52,8 @@ def main():
     # for each magnetic perturbation
     for dBB, (log_nD_opt, log_nNe_opt) in zip(DBBS, OPTIMA):
 
+        print(10**log_nD_opt, 10**log_nNe_opt)
+
         # for each variation in input space
         for dnn in DNNS:
 
@@ -75,7 +78,7 @@ def main():
             optimizer.probe(params={'log_nD': log_nD_opt, 'log_nNe': log_nNe_opt}, lazy=False)
 
             # run pessimization
-            optimizer.maximize(init_points=80, n_iter=19, acq='ei')
+            optimizer.maximize(init_points=80, n_iter=20, acq='ei')
             print(optimizer.max)
 
 
