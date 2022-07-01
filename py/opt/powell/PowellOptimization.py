@@ -65,7 +65,7 @@ class PowellOptimization(Optimization):
         self.nExcept = 0
 
 
-    def _restrainedFun(self, P):
+    def _restrainedFun(self, P, saveAll=True):
         """
         Modified base function that incorporates parameter boundries in the optimization process and runs simulation.
         Any configuration outside of the specified domain automatically returns an arbitrary large number (10^10).
@@ -74,6 +74,9 @@ class PowellOptimization(Optimization):
         self.nFunEval += 1
         
         if (P < self.lowerBound).any() or (P > self.upperBound).any():
+            self.log['allP'] = np.vstack((self.log['allP'], P))
+            self.log['allFun'] = np.append(self.log['allFun'], BIG)
+        
             return BIG
 
         else:
@@ -89,18 +92,30 @@ class PowellOptimization(Optimization):
                 
                 if self.verbose:
                     print('Encountered transport exception.')
+                
+                if saveAll:
+                    self.log['allP'] = np.vstack((self.log['allP'], P))
+                    self.log['allFun'] = np.append(self.log['allFun'], BIG)
+                    
                 return BIG
+                
             except Exception as err:
                 self.nExcept += 1
             
                 self.updateLog(P, None, None)
                 print(f'Simulation error obtained for parameters:\n {self.parameters}\n')
                 raise err
+                
+            fun = self.settings.obFun(s.output)
+            
+            if saveAll:
+                self.log['allP'] = np.vstack((self.log['allP'], P))
+                self.log['allFun'] = np.append(self.log['allFun'], fun)
 
             if self.settings.maximize:
-                return -self.settings.obFun(s.output)
+                return -fun
             else:
-                return self.settings.obFun(s.output)
+                return fun
 
     def _initBracket(self, P, u):
         """
@@ -196,9 +211,9 @@ class PowellOptimization(Optimization):
         nD = len(P0)
 
         fp = BIG
-        fmin = self._restrainedFun(P0)
+        fmin = self._restrainedFun(P0, saveAll=False)
 
-        self.log = {'P': np.copy(P), 'fun': np.array([fmin]), 'brackets': [],
+        self.log = {'P': np.copy(P), 'fun': np.array([fmin]), 'brackets': [], 'allP': np.copy(P), 'allFun': np.array([fmin]),
                     'nFunEval': [self.nFunEval], 'nSim': [self.nSim], 'nExcept': [self.nExcept],
                     'parameters': self.inputParameters, 'settings': self.settings.asDict}                
         self.writeLog()
