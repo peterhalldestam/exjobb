@@ -361,35 +361,32 @@ class DREAMSimulation(sim.Simulation):
         Configures DREAM transport settings for given magnetic perturbation
         profile, number of timesteps and maximum simulation time.
         """
-        # Set transport only if the magnetic pertubation is non-zero
-        if dBB0 != 0:
+        r, dBB = self.input.getMagneticPerturbation(self.do, dBB0, dBB1)
+        R0dBB = np.sqrt(Tokamak.R0) * dBB
 
-            r, dBB = self.input.getMagneticPerturbation(self.do, dBB0, dBB1)
-            R0dBB = np.sqrt(Tokamak.R0) * dBB
+        t = np.linspace(0, tmax, nt)
 
-            t = np.linspace(0, tmax, nt)
+        if self.transport_cold:
+            self.ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
+            self.ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=np.tile(R0dBB, (nt, 1)), r=r, t=t)
 
-            if self.transport_cold:
-                self.ds.eqsys.T_cold.transport.setBoundaryCondition(Transport.BC_F_0)
-                self.ds.eqsys.T_cold.transport.setMagneticPerturbation(dBB=np.tile(R0dBB, (nt, 1)), r=r, t=t)
+        if self.transport_re:
+            if self.svensson:
+                Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
+                Drr = np.tile(Drr, (nt,1,1,1))
 
-            if self.transport_re:
-                if self.svensson:
-                    Drr, xi, p = utils.getDiffusionOperator(dBB, R0=Tokamak.R0)
-                    Drr = np.tile(Drr, (nt,1,1,1))
+                self.ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
+                self.ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
 
-                    self.ds.eqsys.n_re.transport.setSvenssonInterp1dParam(Transport.SVENSSON_INTERP1D_PARAM_TIME)
-                    self.ds.eqsys.n_re.transport.setSvenssonPstar(0.5) # Lower momentum boundry for REs
+                # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
+                self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
+                self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
 
-                    # Used nearest neighbour interpolation thinking it would make simulations more efficient since the coefficient for the most part won't be varying with time.
-                    self.ds.eqsys.n_re.transport.setSvenssonDiffusion(drr=Drr, t=t, r=r, p=p, xi=xi, interp1d=Transport.INTERP1D_NEAREST)
-                    self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
-
-                else:
-                    Drr = utils.getDiffusionOperator(dBB, R0=Tokamak.R0, svensson=False)
-                    Drr = np.tile(Drr, (nt, 1))
-                    self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
-                    self.ds.eqsys.n_re.transport.prescribeDiffusion(Drr, t=t, r=r)
+            else:
+                Drr = utils.getDiffusionOperator(dBB, R0=Tokamak.R0, svensson=False)
+                Drr = np.tile(Drr, (nt, 1))
+                self.ds.eqsys.n_re.transport.setBoundaryCondition(Transport.BC_F_0)
+                self.ds.eqsys.n_re.transport.prescribeDiffusion(Drr, t=t, r=r)
 
 
     def setMMI(self):
